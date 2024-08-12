@@ -1,0 +1,14 @@
+package require tcltest
+package require valkey
+
+namespace import -force ::tcltest::test
+
+::tcltest::configure {*}$argv
+
+test valkeyBasic-1 { nope } -body {
+    set ok ok
+} -result ok
+
+test valkeyBasic-2 { nope } -body {
+    return -code error "failed"
+} -result ok
