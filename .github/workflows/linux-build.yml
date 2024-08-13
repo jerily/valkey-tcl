@@ -61,7 +61,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/libvalkey -DCMAKE_PREFIX_PATH=$HOME/libvalkey
+          cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/libvalkey -DCMAKE_PREFIX_PATH=$HOME/libvalkey -DTCL_INCLUDE_DIR=/usr/include/tcl8.6 -DTCL_LIBRARY_DIR=/usr/lib/x86_64-linux-gnu
       - name: Build
         run: |
           make -j || {
