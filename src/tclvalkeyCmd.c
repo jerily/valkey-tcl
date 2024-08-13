@@ -462,7 +462,8 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
 
     DBG2(printf("parse arguments"));
 
-    if (Tcl_ParseArgsObjv(interp, ArgTable, &objc, objv, NULL) != TCL_OK) {
+    Tcl_Size temp_objc = objc;
+    if (Tcl_ParseArgsObjv(interp, ArgTable, &temp_objc, objv, NULL) != TCL_OK) {
         DBG2(printf("return: ERROR (failed to parse args)"));
         return TCL_ERROR;
     }
