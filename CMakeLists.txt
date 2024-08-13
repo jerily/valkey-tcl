@@ -19,8 +19,9 @@ find_program(TCL_TCLSH
   NAMES
       tclsh86 tclsh8.6
       tclsh90 tclsh9.0
-  HINTS
+  PATHS
       ${TCL_INCLUDE_PATH}/../bin
+  NO_DEFAULT_PATH
 )
 find_package(valkey REQUIRED)
 
