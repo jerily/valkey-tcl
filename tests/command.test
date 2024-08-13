@@ -9,8 +9,6 @@ source [file join [file dirname [info script]] common.tcl]
 
 set ::valkey_server_args [list -e ALLOW_EMPTY_PASSWORD=yes]
 
-valkey_server up
-
 test valkeyCommand-1.1 { Test SET command } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
