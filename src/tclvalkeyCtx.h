@@ -15,6 +15,11 @@ typedef struct {
     Tcl_Command cmdToken;
     int refcount;
     Tcl_Mutex mx;
+
+    /* options */
+    int isReplyTyped;
+    int isBlocking;
+
 } vktcl_CtxType;
 
 #define vktcl_CtxLock(x) Tcl_MutexLock(&(x)->mx);

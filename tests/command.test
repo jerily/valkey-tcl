@@ -1,0 +1,55 @@
+package require tcltest
+package require valkey
+
+namespace import -force ::tcltest::test
+
+::tcltest::configure {*}$argv
+
+source [file join [file dirname [info script]] common.tcl]
+
+set ::valkey_server_args [list -e ALLOW_EMPTY_PASSWORD=yes]
+
+valkey_server up
+
+test valkeyCommand-1.1 { Test SET command } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh SET foo bar
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result OK
+
+test valkeyCommand-2.1 { Test GET command } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh SET foo qux
+    $vkh GET foo
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result qux
+
+test valkeyCommand-3.1 { Test PING command without arguments } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh PING
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result PONG
+
+test valkeyCommand-3.2 { Test PING command with argument } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh PING foo
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result foo
+
+valkey_server down

@@ -1,0 +1,92 @@
+package require tcltest
+package require valkey
+
+namespace import -force ::tcltest::test
+
+::tcltest::configure {*}$argv
+
+source [file join [file dirname [info script]] common.tcl]
+
+valkey_fake_server up
+
+test valkeyConfigure-1.1 { Test configure without arguments (and check the default values) } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh configure
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result {-blocking 1 -reply_typed 0}
+
+test valkeyConfigure-1.2 { Test configure with unknown argument } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh configure -foo
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {bad option "-foo": must be -blocking or -reply_typed}
+
+test valkeyConfigure-1.3.1 { Test configure without value for argument -blocking } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh configure -blocking
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {missing value for option "-blocking"}
+
+test valkeyConfigure-1.3.2 { Test configure without value for argument -reply_typed } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh configure -reply_typed
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {missing value for option "-reply_typed"}
+
+test valkeyConfigure-1.4.1 { Test configure with wrong value for argument -blocking } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh configure -blocking a
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {expected a boolean value for option "-blocking", but got "a"}
+
+test valkeyConfigure-1.4.2 { Test configure with wrong value for argument -reply_typed } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    $vkh configure -reply_typed b
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {expected a boolean value for option "-reply_typed", but got "b"}
+
+test valkeyConfigure-2.1.1 { Test configure, option -blocking, value true } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    dict get [$vkh configure -blocking true] -blocking
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result 1
+
+test valkeyConfigure-2.1.2 { Test configure, option -blocking, value false } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    dict get [$vkh configure -blocking false] -blocking
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result 0
+
+test valkeyConfigure-2.2.1 { Test configure, option -reply_typed, value true } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    dict get [$vkh configure -reply_typed true] -reply_typed
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result 1
+
+test valkeyConfigure-2.2.2 { Test configure, option -reply_typed, value false } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    dict get [$vkh configure -reply_typed false] -reply_typed
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result 0
+
+valkey_fake_server down

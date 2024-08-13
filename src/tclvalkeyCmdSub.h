@@ -9,13 +9,15 @@
 #include "common.h"
 #include "tclvalkeyCtx.h"
 
-typedef valkeyReply* (vktcl_SubCmdProc)(vktcl_CtxType *ctx, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]);
+typedef valkeyReply* (vktcl_SubCmdProc)(vktcl_CtxType *ctx, Tcl_Interp *interp,
+    int command_words, int objc, Tcl_Obj *const objv[]);
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 vktcl_SubCmdProc vktcl_CtxHandleCmdSubRaw;
+vktcl_SubCmdProc vktcl_CtxHandleCmdSubUniversal;
 vktcl_SubCmdProc vktcl_CtxHandleCmdSubConfigure;
 
 #ifdef __cplusplus

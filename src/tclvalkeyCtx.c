@@ -26,6 +26,10 @@ vktcl_CtxType *vktcl_CtxNew(Tcl_Interp *interp, valkeyContext *vk_ctx) {
     rc->cmdToken = NULL;
     snprintf(rc->cmd, sizeof(rc->cmd), "::valkey::handle%p", (void *)rc);
 
+    // Default options
+    rc->isReplyTyped = 0;
+    rc->isBlocking = 1;
+
     Tcl_MutexLock(&vktcl_ctx2internal_mx);
 
     int newEntry;

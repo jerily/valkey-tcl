@@ -11,6 +11,281 @@
 
 #include <sys/time.h> /* timeval struct */
 
+typedef enum {
+    VK_SUBCOMMAND_RETURNS_REPLY,
+    VK_SUBCOMMAND_CONFIGURE,
+    VK_SUBCOMMAND_DESTROY
+} vktcl_CommandType;
+
+static const struct {
+    const char *word1;
+    const char *word2;
+    int arg_num;
+    vktcl_CommandType type;
+    vktcl_SubCmdProc *func;
+} vktcl_commands[] = {
+    { "raw",       NULL, -2, VK_SUBCOMMAND_RETURNS_REPLY, vktcl_CtxHandleCmdSubRaw },
+    { "configure", NULL, -1, VK_SUBCOMMAND_CONFIGURE,     vktcl_CtxHandleCmdSubConfigure },
+    { "destroy",   NULL,  1, VK_SUBCOMMAND_DESTROY,       NULL },
+#define COMMAND(_type, _name, _subname, _arity, _keymethod, _keypos) \
+    { _name, _subname, _arity, VK_SUBCOMMAND_RETURNS_REPLY, vktcl_CtxHandleCmdSubUniversal },
+#include "cmddef.h"
+#undef COMMAND
+    { NULL, NULL, 0, 0, NULL }
+};
+
+static int vktcl_ValidateCommand(Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+
+    DBG2(printf("enter"));
+
+    int idx;
+    int i;
+    Tcl_Obj *errmsg = NULL;
+    int nargs;
+    const char *arg_to_compare;
+
+    // We are not using Tcl_GetIndexFromObjStruct() here because we have duplicates in
+    // the command list and this function generates an error with those duplicates.
+    arg_to_compare = Tcl_GetString(objv[1]);
+    // This variable will be used to generate an error message.
+    int command_count = 0;
+    for (idx = 0; vktcl_commands[idx].word1 != NULL; idx++) {
+        if (strcmp(vktcl_commands[idx].word1, arg_to_compare) == 0) {
+            break;
+        }
+        command_count++;
+    }
+
+    // We could not find the command. Generate an error message.
+    if (vktcl_commands[idx].word1 == NULL) {
+
+        errmsg = Tcl_ObjPrintf("bad command \"%s\": must be ", arg_to_compare);
+        int is_first = 1;
+        command_count--;
+        for (idx = 0; vktcl_commands[idx].word1 != NULL; idx++) {
+
+            // Skip if the next command is the same as the current one
+            if (idx < command_count && strcmp(vktcl_commands[idx].word1, vktcl_commands[idx + 1].word1) == 0) {
+                continue;
+            }
+
+            // If we found the first command, just add it as is
+            if (is_first) {
+                Tcl_AppendToObj(errmsg, vktcl_commands[idx].word1, -1);
+                is_first = 0;
+                continue;
+            }
+
+            if (idx == command_count) {
+                Tcl_AppendStringsToObj(errmsg, " or ", vktcl_commands[idx].word1, NULL);
+            } else {
+                Tcl_AppendStringsToObj(errmsg, ", ", vktcl_commands[idx].word1, NULL);
+            }
+
+        }
+
+        goto error;
+
+    }
+
+    if (Tcl_GetIndexFromObjStruct(interp, objv[1], vktcl_commands, sizeof(vktcl_commands[0]),
+        "command", 0, &idx) != TCL_OK)
+    {
+        goto error;
+    }
+
+    DBG2(printf("the first command word is: [%s]", vktcl_commands[idx].word1));
+
+    // Some commands contains 2 words. Let's check the second word.
+    if (vktcl_commands[idx].word2 != NULL) {
+
+        DBG2(printf("command has 2 words"));
+
+        if (objc < 3) {
+
+            // Let's give the user a clear error message indicating which
+            // command requires the second word.
+            errmsg = Tcl_ObjPrintf("%s subcommand ?arg ...?", vktcl_commands[idx].word1);
+            Tcl_WrongNumArgs(interp, 1, objv, Tcl_GetString(errmsg));
+            Tcl_BounceRefCount(errmsg);
+            errmsg = NULL;
+
+            goto error;
+
+        }
+
+        // We need to validate the second word. We'll go through the available
+        // commands, compare the first word with the word we have already found,
+        // and then check the second word.
+
+        arg_to_compare = Tcl_GetString(objv[2]);
+        // This variable contains the number of available subcommands for
+        // a given command. It will be used to generate a nice error message
+        // if we don't find the specified subcommand.
+        int found_subcommand_count = 0;
+        for (i = 0; vktcl_commands[i].word1 != NULL; i++) {
+
+            // Skip if the first word doesn't match
+            if (strcmp(vktcl_commands[i].word1, vktcl_commands[idx].word1) != 0) {
+                continue;
+            }
+
+            // Check the second word
+            if (strcmp(vktcl_commands[i].word2, arg_to_compare) == 0) {
+                // We found the second word
+                break;
+            }
+
+            found_subcommand_count++;
+
+        }
+
+        // If the second word is not found, then we stop at the NULL word.
+        // Let's give user a clear error message with a list of available
+        // subcommands.
+        if (vktcl_commands[i].word1 == NULL) {
+
+            errmsg = Tcl_ObjPrintf("unknown subcommand \"%s\" for command %s:"
+                " must be ", arg_to_compare, vktcl_commands[idx].word1);
+            // Go through the available commands again to collect a list of
+            // known subcommands.
+            int found_subcommand_number = 0;
+            for (i = 0; vktcl_commands[i].word1 != NULL; i++) {
+
+                if (strcmp(vktcl_commands[i].word1, vktcl_commands[idx].word1) != 0) {
+                    continue;
+                }
+
+                found_subcommand_number++;
+
+                if (found_subcommand_number == 1) {
+                    Tcl_AppendToObj(errmsg, vktcl_commands[i].word2, -1);
+                } else if (found_subcommand_number == found_subcommand_count) {
+                    Tcl_AppendStringsToObj(errmsg, " or ", vktcl_commands[i].word2, NULL);
+                } else {
+                    Tcl_AppendStringsToObj(errmsg, ", ", vktcl_commands[i].word2, NULL);
+                }
+
+            }
+
+            goto error;
+
+        }
+
+        // Let's use the found index
+        idx = i;
+        nargs = objc - 3;
+
+    } else {
+        nargs = objc - 2;
+    }
+
+    // Now, let's check number of arguments for the given command
+    DBG2(printf("command wants %d args, have %d args", vktcl_commands[idx].arg_num, nargs));
+
+    // Check if the commands takes no arguments
+    if (vktcl_commands[idx].arg_num == 1) {
+
+        if (nargs == 0) {
+            // No arguments are specified.
+            goto ok;
+        }
+
+        // We have some arguments that cannot be accepted.
+
+        errmsg = Tcl_NewStringObj(vktcl_commands[i].word1, -1);
+        if (vktcl_commands[idx].word2 != NULL) {
+            Tcl_AppendPrintfToObj(errmsg, " %s", vktcl_commands[i].word2);
+        }
+        Tcl_AppendToObj(errmsg, " command doesn't accept arguments, but ", -1);
+        if (nargs == 1) {
+            Tcl_AppendToObj(errmsg, "1 argument was given", -1);
+        } else {
+            Tcl_AppendPrintfToObj(errmsg, "%d arguments were given", nargs);
+        }
+
+        goto error;
+
+    }
+
+    // Check if the command requires a minimum number of arguments
+    if (vktcl_commands[idx].arg_num < 0) {
+
+        if (nargs >= (abs(vktcl_commands[idx].arg_num) - 1)) {
+            // We have a minimum number of arguments
+            goto ok;
+        }
+
+        // We don't have enough arguments. Let's generate an appropriate error
+        // message.
+
+        errmsg = Tcl_NewStringObj(vktcl_commands[idx].word1, -1);
+        if (vktcl_commands[idx].word2 != NULL) {
+            Tcl_AppendPrintfToObj(errmsg, " %s", vktcl_commands[idx].word2);
+        }
+        if (vktcl_commands[idx].arg_num == -1) {
+            Tcl_AppendToObj(errmsg, " command requires a minimum of 1 argument,"
+                " but no arguments were given", -1);
+        } else {
+            Tcl_AppendPrintfToObj(errmsg, " command requires a minimum of %d arguments,"
+                " but ", abs(vktcl_commands[idx].arg_num) - 1);
+            if (nargs == 0) {
+                Tcl_AppendPrintfToObj(errmsg, "no arguments were given");
+            } else if (nargs == 1) {
+                Tcl_AppendPrintfToObj(errmsg, "only 1 argument was given");
+            } else {
+                Tcl_AppendPrintfToObj(errmsg, "only %d arguments were given", nargs);
+            }
+
+        }
+
+        goto error;
+
+    }
+
+    // Check if the command requires the exact number of arguments
+
+    if (nargs == (vktcl_commands[idx].arg_num - 1)) {
+        // We have the exact number of arguments
+        goto ok;
+    }
+
+    // We don't have the exact number of arguments.
+    errmsg = Tcl_NewStringObj(vktcl_commands[idx].word1, -1);
+    if (vktcl_commands[idx].word2 != NULL) {
+        Tcl_AppendPrintfToObj(errmsg, " %s", vktcl_commands[idx].word2);
+    }
+    Tcl_AppendToObj(errmsg, " command requires exactly ", -1);
+    if (vktcl_commands[idx].arg_num == 2) {
+        Tcl_AppendToObj(errmsg, "1 argument, but ", -1);
+    } else {
+        Tcl_AppendPrintfToObj(errmsg, "%d arguments, but ", (vktcl_commands[idx].arg_num - 1));
+    }
+    if (nargs == 0) {
+        Tcl_AppendToObj(errmsg, "no arguments were given", -1);
+    } else if (nargs == 1) {
+        Tcl_AppendToObj(errmsg, "only 1 argument was given", -1);
+    } else {
+        Tcl_AppendPrintfToObj(errmsg, "%d arguments were given", nargs);
+    }
+
+error:
+
+    if (errmsg != NULL) {
+        Tcl_SetObjResult(interp, errmsg);
+    }
+
+    DBG2(printf("return: ERROR (%s)", Tcl_GetStringResult(interp)));
+
+    return -1;
+
+ok:
+
+   DBG2(printf("return: ok (%d)", idx));
+   return idx;
+
+}
+
 static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 
     int rc = TCL_OK;
@@ -19,7 +294,7 @@ static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int obj
     DBG2(printf("enter %p", (void *)ctx));
 
     if (objc < 2) {
-        Tcl_WrongNumArgs(interp, 1, objv, "subcmd ?arg ...?");
+        Tcl_WrongNumArgs(interp, 1, objv, "command ?subcommand? ?arg ...?");
         DBG2(printf("return: ERROR (wrong # args)"));
         return TCL_ERROR;
     }
@@ -36,29 +311,30 @@ static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int obj
         goto error;
     }
 
-    static const struct {
-        const char *cmd;
-        int isReply;
-        vktcl_SubCmdProc *func;
-    } subcommands[] = {
-        {"raw",       1, vktcl_CtxHandleCmdSubRaw},
-        {"configure", 0, vktcl_CtxHandleCmdSubConfigure},
-        {NULL, NULL}
-    };
-
-    int idx;
-    if (Tcl_GetIndexFromObjStruct(interp, objv[1], subcommands, sizeof(subcommands[0]),
-        "subcmd", 0, &idx) != TCL_OK)
-    {
+    int idx = vktcl_ValidateCommand(interp, objc, objv);
+    if (idx < 0) {
         goto error;
     }
 
-    DBG2(printf("run subcmd [%s] ...", subcommands[idx].cmd));
-    valkeyReply *reply = subcommands[idx].func(ctx, interp, objc, objv);
+    // Handle the destroy subcommand in special way
+    if (vktcl_commands[idx].type == VK_SUBCOMMAND_DESTROY) {
+        // If destroyed, unlock the context and delete the command handler.
+        // Everything will be freed when the command handler is released.
+        // Return the name of our deleted command, just to return at least
+        // something.
+        SetResult(ctx->cmd);
+        vktcl_CtxUnlock(ctx);
+        Tcl_DeleteCommandFromToken(ctx->interp, ctx->cmdToken);
+        return TCL_OK;
+    }
 
-    // If subcommand returns raw return code (like the configure subcommand),
-    // return it as is.
-    if (!subcommands[idx].isReply) {
+    int command_words = (vktcl_commands[idx].word2 == NULL ? 1 : 2);
+
+    valkeyReply *reply = vktcl_commands[idx].func(ctx, interp, command_words, objc, objv);
+
+    // Special case for the configure command. It does not return
+    // the valkey response, but the return code itself.
+    if (vktcl_commands[idx].type == VK_SUBCOMMAND_CONFIGURE) {
         rc = PTR2INT(reply);
         DBG2(printf("return: %s (raw response)", (rc == TCL_OK ? "OK" : "ERROR")));
         goto done;
@@ -66,13 +342,20 @@ static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int obj
 
     // Check of error
     if (reply == NULL) {
-        DBG2(printf("return: ERROR (valkey: %s)", ctx->vk_ctx->errstr));
-        SetResult(ctx->vk_ctx->errstr);
+        // If valkey context is in error state, then return error from the context.
+        // Otherwise, we will get an en error from the subcommand, and it should
+        // set the appropriate error message to the interp result.
+        if (ctx->vk_ctx->err) {
+            DBG2(printf("return: ERROR (valkey: %s)", ctx->vk_ctx->errstr));
+            SetResult(ctx->vk_ctx->errstr);
+        } else {
+            DBG2(printf("return: ERROR (subcmd: %s)", Tcl_GetStringResult(interp)));
+        }
         goto error;
     }
 
     Tcl_Obj *replyObj;
-    rc = vktcl_ReplyToTclObject(reply, &replyObj, 0);
+    rc = vktcl_ReplyToTclObject(reply, &replyObj, ctx->isReplyTyped);
     Tcl_SetObjResult(interp, replyObj);
 
     freeReplyObject(reply);

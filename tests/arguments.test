@@ -1,0 +1,93 @@
+package require tcltest
+package require valkey
+
+namespace import -force ::tcltest::test
+
+::tcltest::configure {*}$argv
+
+test valkeyArguments-1.1 { Test error for command without args } -body {
+    valkey
+} -returnCodes error -result {-host or -path must be specified}
+
+test valkeyArguments-1.2 { Test error for unknown options } -body {
+    valkey -foo
+} -returnCodes error -result {unrecognized argument "-foo"}
+
+test valkeyArguments-1.3 { Test error for unknown argument } -body {
+    valkey foo
+} -returnCodes error -result {unrecognized argument "foo"}
+
+test valkeyArguments-1.4 { Test error for unknown argument after known argument } -body {
+    valkey -host bla foo1
+} -returnCodes error -result {unrecognized argument "foo1"}
+
+test valkeyArguments-1.5 { Test error with known argument, but without -host or -path } -body {
+    valkey -password foo
+} -returnCodes error -result {-host or -path must be specified}
+
+test valkeyArguments-1.6 { Test error when both -host and -path are specified } -body {
+    valkey -host foo -path bla
+} -returnCodes error -result {both -host and -path can not be specified}
+
+test valkeyArguments-1.7 { Test error for -ssl with parameter } -body {
+    valkey -ssl baz
+} -returnCodes error -result {unrecognized argument "baz"}
+
+test valkeyArguments-1.8 { Test error for wrong -port, case #1 } -body {
+    valkey -port x
+} -returnCodes error -result {expected integer argument for "-port" but got "x"}
+
+test valkeyArguments-1.9 { Test error for wrong -port, case #2 } -body {
+    valkey -host foo -port -1
+} -returnCodes error -result {unsigned integer argument from 1 to 65535 is expected as -port option, but got "-1"}
+
+test valkeyArguments-1.10 { Test error for wrong -port, case #3 } -body {
+    valkey -host foo -port 999999
+} -returnCodes error -result {unsigned integer argument from 1 to 65535 is expected as -port option, but got "999999"}
+
+test valkeyArguments-1.11 { Test error for wrong -timeout } -body {
+    valkey -timeout x
+} -returnCodes error -result {expected integer argument for "-timeout" but got "x"}
+
+test valkeyArguments-1.12 { Test error for -host without argument } -body {
+    valkey -host
+} -returnCodes error -result {"-host" option requires an additional argument}
+
+test valkeyArguments-1.13 { Test error for -port without argument } -body {
+    valkey -port
+} -returnCodes error -result {"-port" option requires an additional argument}
+
+test valkeyArguments-1.14 { Test error for -path without argument } -body {
+    valkey -path
+} -returnCodes error -result {"-path" option requires an additional argument}
+
+test valkeyArguments-1.15 { Test error for -password without argument } -body {
+    valkey -password
+} -returnCodes error -result {"-password" option requires an additional argument}
+
+test valkeyArguments-1.16 { Test error for -timeout without argument } -body {
+    valkey -timeout
+} -returnCodes error -result {"-timeout" option requires an additional argument}
+
+test valkeyArguments-1.17 { Test error for -var without argument } -body {
+    valkey -host 1 -password foo -var
+} -returnCodes error -result {"-var" option requires an additional argument}
+
+test valkeyArguments-1.18 { Test error for -ssl without -host } -body {
+    valkey -path foo -ssl
+} -returnCodes error -result {-ssl can be only used when -host is specified}
+
+test valkeyArguments-2.1 { Test help message } -body {
+    valkey -help
+} -returnCodes error -result "Command-specific options:
+ -host:     hostname to connect
+ -port:     post number to connect
+\t\tDefault value: 6379
+ -ssl:      use SSL/TLS for connection
+ -path:     path to UNIX socket
+ -password: password for connection
+ -timeout:  timeout value in milliseconds for connecting and sending commands
+\t\tDefault value: -1
+ -var:      name of the variable to be associated with the created valkey context
+ -help:     Print summary of command-line options and abort"
+

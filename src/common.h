@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 #include <valkey/valkey.h>
 
 #ifndef TCL_SIZE_MAX
@@ -23,6 +24,10 @@ typedef int Tcl_Size;
 # define Tcl_NewSizeIntObj Tcl_NewIntObj
 # define TCL_SIZE_MAX      INT_MAX
 # define TCL_SIZE_MODIFIER ""
+#endif
+
+#ifndef Tcl_BounceRefCount
+#define Tcl_BounceRefCount(x) Tcl_IncrRefCount((x));Tcl_DecrRefCount((x))
 #endif
 
 #if !defined(INT2PTR) && !defined(PTR2INT)

@@ -1,0 +1,2 @@
+* Add support for password (auth)
+* If password was not specified for context creation, try to detect if valkey server is passwordless

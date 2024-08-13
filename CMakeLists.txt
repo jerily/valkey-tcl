@@ -34,7 +34,8 @@ add_compile_definitions(TCL_THREADS VERSION=${PROJECT_VERSION})
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     add_compile_options(-fPIC -g -fsanitize=undefined -fsanitize=address)
     add_link_options(-fsanitize=undefined -fsanitize=address)
-    set(CMAKE_C_FLAGS "-DDEBUG ${CMAKE_C_FLAGS}")
+    add_compile_definitions(TCL_MEM_DEBUG=1)
+    # set(CMAKE_C_FLAGS "-DDEBUG ${CMAKE_C_FLAGS}")
 else()
     # NDEBUG to not generate code for assert
     add_compile_definitions(NDEBUG)
@@ -45,9 +46,12 @@ endif ()
 set(CMAKE_CTEST_ARGUMENTS "--verbose")
 #set(CMAKE_CTEST_ARGUMENTS "--output-on-failure")
 enable_testing()
-add_test(NAME AllUnitTests COMMAND ${TCL_TCLSH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/all.tcl -verbose "body error start")
-set_tests_properties(AllUnitTests PROPERTIES
-    ENVIRONMENT TCLLIBPATH=${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME AllUnitTests
+    COMMAND ${TCL_TCLSH} ${CMAKE_CURRENT_SOURCE_DIR}/tests/all.tcl -verbose "body error start"
+)
+set_tests_properties(AllUnitTests
+    PROPERTIES ENVIRONMENT TCLLIBPATH=${CMAKE_CURRENT_BINARY_DIR}
+)
 
 add_custom_target(shell ${CMAKE_COMMAND} -E env TCLLIBPATH=${CMAKE_CURRENT_BINARY_DIR} ${TCL_TCLSH}
     USES_TERMINAL
