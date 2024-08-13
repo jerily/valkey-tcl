@@ -40,6 +40,33 @@ jobs:
             exit 1
           }
 
+      - name: Checkout libvalkey
+        uses: actions/checkout@v4
+        with:
+          repository: valkey-io/libvalkey
+          ref: main
+          path: libvalkey
+      - name: Configure libvalkey
+        working-directory: libvalkey
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/libvalkey -DCMAKE_PREFIX_PATH=$HOME/libvalkey -DENABLE_SSL=OFF
+      - name: Build libvalkey
+        working-directory: libvalkey/build
+        run: |
+          make -j || {
+            echo "::error::Failure during Build libvalkey"
+            exit 1
+          }
+      - name: Install libvalkey
+        working-directory: libvalkey/build
+        run: |
+          make install || {
+            echo "::error::Failure during Install libvalkey"
+            exit 1
+          }
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
