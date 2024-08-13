@@ -22,6 +22,7 @@ find_program(TCL_TCLSH
       tclsh
   PATHS
       ${TCL_INCLUDE_PATH}/../bin
+      ${TCL_INCLUDE_PATH}/../../bin
   NO_DEFAULT_PATH
 )
 find_package(valkey REQUIRED)
