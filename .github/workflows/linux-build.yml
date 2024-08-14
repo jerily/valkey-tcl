@@ -1,0 +1,85 @@
+name: Linux
+on: [push]
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        compiler: ["gcc", "clang"]
+    name: build (${{ matrix.compiler }})
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Environment (compiler=${{ matrix.compiler }})
+        run: |
+          sudo apt-get install tcl8.6-dev cmake
+          mkdir "$HOME/install dir"
+          echo "CFGOPT_COMMON=--with-tcl=/usr/lib/tcl8.6" >> $GITHUB_ENV
+          echo "CC=$COMPILER" >> $GITHUB_ENV
+        env:
+          COMPILER: ${{ matrix.compiler }}
+          OPTS: ${{ matrix.compiler }}
+
+      - name: Checkout libvalkey
+        uses: actions/checkout@v4
+        with:
+          repository: valkey-io/libvalkey
+          ref: main
+          path: libvalkey
+      - name: Configure libvalkey
+        working-directory: libvalkey
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/libvalkey -DCMAKE_PREFIX_PATH=$HOME/libvalkey -DENABLE_SSL=OFF
+      - name: Build libvalkey
+        working-directory: libvalkey/build
+        run: |
+          make -j || {
+            echo "::error::Failure during Build libvalkey"
+            exit 1
+          }
+      - name: Install libvalkey
+        working-directory: libvalkey/build
+        run: |
+          make install || {
+            echo "::error::Failure during Install libvalkey"
+            exit 1
+          }
+
+      - name: Configure
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/libvalkey -DCMAKE_PREFIX_PATH=$HOME/libvalkey -DTCL_INCLUDE_DIR=/usr/include/tcl8.6 -DTCL_LIBRARY_DIR=/usr/lib/x86_64-linux-gnu
+      - name: Build
+        working-directory: build
+        run: |
+          make -j || {
+            echo "::error::Failure during Build"
+            exit 1
+          }
+      - name: Run Tests
+        working-directory: build
+        run: |
+          make test || {
+            echo "::error::Failure during Test"
+            exit 1
+          }
+      - name: Test-Drive Installation
+        working-directory: build
+        run: |
+          make install || {
+            echo "::error::Failure during Install"
+            exit 1
+          }
