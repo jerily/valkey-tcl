@@ -1,3 +1,4 @@
 * Add support for password (auth)
 * If password was not specified for context creation, try to detect if valkey server is passwordless
 * Add support for async communications
+* Add tests for communication with server via UNIX sockets
