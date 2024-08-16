@@ -543,6 +543,24 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
         return TCL_ERROR;
     }
 
+    if (opt_password) {
+        valkeyReply *reply = valkeyCommand(vk_ctx, "AUTH %s", opt_password);
+        if (reply == NULL) {
+            SetResult("failed to authenticate");
+            DBG2(printf("return: ERROR (failed to authenticate)"));
+            valkeyFree(vk_ctx);
+            return TCL_ERROR;
+        }
+        if (reply->type != VALKEY_REPLY_STATUS || strcmp(reply->str, "OK") != 0) {
+            SetResult("authentication failed");
+            DBG2(printf("return: ERROR (authentication failed)"));
+            freeReplyObject(reply);
+            valkeyFree(vk_ctx);
+            return TCL_ERROR;
+        }
+        freeReplyObject(reply);
+    }
+
     vktcl_CtxType *ctx = vktcl_CtxNew(interp, vk_ctx);
     if (ctx == NULL) {
         SetResult("failed to add valkey context");
