@@ -147,6 +147,24 @@ static void vktcl_CtxPackageFinalize(ClientData clientData) {
     DBG2(printf("ok"));
 
 }
+static char *vktcl_strdup(const char *s) {
+    size_t len;
+    char *dup;
+
+    len = strlen(s);
+    dup = ckalloc(len + 1);
+
+    memcpy(dup,s,len + 1);
+
+    return dup;
+}
+
+static void *vktcl_calloc(size_t nmemb, size_t size) {
+    size_t total = nmemb * size;
+    void *ptr = Tcl_Alloc(total);
+    memset(ptr, 0, total);
+    return ptr;
+}
 
 void vktcl_CtxPackageInitialize(void) {
 
@@ -155,6 +173,18 @@ void vktcl_CtxPackageInitialize(void) {
     DBG2(printf("enter..."));
 
     if (!vktcl_ctx_ht_initialized) {
+
+        DBG2(printf("initialize"));
+
+        valkeyAllocFuncs allocFuncs = {
+                .mallocFn = ckalloc,
+                .callocFn = vktcl_calloc,
+                .reallocFn = ckrealloc,
+                .strdupFn = vktcl_strdup,
+                .freeFn = ckfree
+        };
+
+        valkeySetAllocators(&allocFuncs);
 
         DBG2(printf("initialize"));
 
