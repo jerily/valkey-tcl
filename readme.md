@@ -26,6 +26,9 @@ cd valkey-tcl
 mkdir build
 cd build
 cmake ..
+# or if TCL is not in the default path (/usr/local/lib):
+# change "TCL_LIBRARY_DIR" and "TCL_INCLUDE_DIR" to the correct paths
+# cmake .. -DTCL_LIBRARY_DIR=/usr/local/lib -DTCL_INCLUDE_DIR=/usr/local/include
 make
 make install
 ```

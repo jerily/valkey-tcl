@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT.
  */
 
-#include "tclvalkeyCmd.h"
+#include "library.h"
 #include "tclvalkeyCmdSub.h"
 #include "tclvalkeyCtx.h"
 #include "tclvalkeyReply.h"

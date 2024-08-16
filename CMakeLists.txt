@@ -62,8 +62,8 @@ add_custom_target(shell ${CMAKE_COMMAND} -E env TCLLIBPATH=${CMAKE_CURRENT_BINAR
 
 add_library(tclvalkey SHARED
     src/common.h
-    src/tclvalkeyCmd.c
-    src/tclvalkeyCmd.h
+    src/library.c
+    src/library.h
     src/tclvalkeyCmdSub.c
     src/tclvalkeyCmdSub.h
     src/tclvalkeyCtx.c

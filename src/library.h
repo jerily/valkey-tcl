@@ -3,8 +3,8 @@
  * SPDX-FileCopyrightText: 2024 Neofytos Dimitriou (neo@jerily.cy)
  * SPDX-License-Identifier: MIT.
  */
-#ifndef VALKEYTCL_TCLVALKEYCMD_H
-#define VALKEYTCL_TCLVALKEYCMD_H
+#ifndef VALKEYTCL_LIBRARY_H
+#define VALKEYTCL_LIBRARY_H
 
 #include "common.h"
 
@@ -22,4 +22,4 @@ NS_EXTERN int Ns_ModuleInit(const char *server, const char *module);
 }
 #endif
 
-#endif // VALKEYTCL_TCLVALKEYCMD_H
+#endif // VALKEYTCL_LIBRARY_H

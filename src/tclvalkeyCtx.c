@@ -147,6 +147,7 @@ static void vktcl_CtxPackageFinalize(ClientData clientData) {
     DBG2(printf("ok"));
 
 }
+
 static char *vktcl_strdup(const char *s) {
     size_t len;
     char *dup;
@@ -161,9 +162,21 @@ static char *vktcl_strdup(const char *s) {
 
 static void *vktcl_calloc(size_t nmemb, size_t size) {
     size_t total = nmemb * size;
-    void *ptr = Tcl_Alloc(total);
+    void *ptr = ckalloc(total);
     memset(ptr, 0, total);
     return ptr;
+}
+
+static void *vktcl_alloc(size_t size) {
+    return ckalloc(size);
+}
+
+static void *vktcl_realloc(void *ptr, size_t size) {
+    return ckrealloc(ptr, size);
+}
+
+static void vktcl_free(void *ptr) {
+    ckfree(ptr);
 }
 
 void vktcl_CtxPackageInitialize(void) {
@@ -177,11 +190,11 @@ void vktcl_CtxPackageInitialize(void) {
         DBG2(printf("initialize"));
 
         valkeyAllocFuncs allocFuncs = {
-                .mallocFn = ckalloc,
+                .mallocFn = vktcl_alloc,
                 .callocFn = vktcl_calloc,
-                .reallocFn = ckrealloc,
+                .reallocFn = vktcl_realloc,
                 .strdupFn = vktcl_strdup,
-                .freeFn = ckfree
+                .freeFn = vktcl_free
         };
 
         valkeySetAllocators(&allocFuncs);
