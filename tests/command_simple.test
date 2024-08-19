@@ -14,7 +14,7 @@ valkey_fake_server up
 # single word command: GET, requires 1 argument
 
 test valkeyCommandSimple-1.1.1 { Test GET without arguments } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -timeout 100]
     $vkh GET
 } -cleanup {
     catch { $vkh destroy }
@@ -22,45 +22,45 @@ test valkeyCommandSimple-1.1.1 { Test GET without arguments } -body {
 } -returnCodes error -result {GET command requires exactly 1 argument, but no arguments were given}
 
 test valkeyCommandSimple-1.1.2 { Test GET wrong # args } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh GET a b c
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
 } -returnCodes error -result {GET command requires exactly 1 argument, but 3 arguments were given}
 
-# double words command: CLIENT CACHING, requires 2 argument
+# double words command: CLIENT SETINFO, requires 2 argument
 
-test valkeyCommandSimple-1.2.1 { Test CLIENT CACHING without arguments } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
-    $vkh CLIENT CACHING
+test valkeyCommandSimple-1.2.1 { Test CLIENT SETINFO without arguments } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh CLIENT SETINFO
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
-} -returnCodes error -result {CLIENT CACHING command requires exactly 2 arguments, but no arguments were given}
+} -returnCodes error -result {CLIENT SETINFO command requires exactly 2 arguments, but no arguments were given}
 
-test valkeyCommandSimple-1.2.2 { Test CLIENT CACHING wrong # args, less than needed } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
-    $vkh CLIENT CACHING 1
+test valkeyCommandSimple-1.2.2 { Test CLIENT SETINFO wrong # args, less than needed } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh CLIENT SETINFO 1
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
-} -returnCodes error -result {CLIENT CACHING command requires exactly 2 arguments, but only 1 argument was given}
+} -returnCodes error -result {CLIENT SETINFO command requires exactly 2 arguments, but only 1 argument was given}
 
-test valkeyCommandSimple-1.2.3 { Test CLIENT CACHING wrong # args, more than needed } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
-    $vkh CLIENT CACHING 1 2 3
+test valkeyCommandSimple-1.2.3 { Test CLIENT SETINFO wrong # args, more than needed } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh CLIENT SETINFO 1 2 3
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
-} -returnCodes error -result {CLIENT CACHING command requires exactly 2 arguments, but 3 arguments were given}
+} -returnCodes error -result {CLIENT SETINFO command requires exactly 2 arguments, but 3 arguments were given}
 
 # command with a certain minimum number of arguments
 
 # single word command: BITCOUNT, requires at least 1 argument
 
 test valkeyCommandSimple-2.1.1 { Test BITCOUNT wrong # args } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh BITCOUNT
 } -cleanup {
     catch { $vkh destroy }
@@ -70,35 +70,35 @@ test valkeyCommandSimple-2.1.1 { Test BITCOUNT wrong # args } -body {
 # single word command: BITOP, requires at least 3 arguments
 
 test valkeyCommandSimple-2.2.1 { Test BITOP wrong # args } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh BITOP 1
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
 } -returnCodes error -result {BITOP command requires a minimum of 3 arguments, but only 1 argument was given}
 
-# dounble word command: CLIENT LIST, requires at least 1 argument
+# double word command: ACL SETUSER, requires at least 1 argument
 
-test valkeyCommandSimple-3.1.1 { Test CLIENT LIST wrong # args } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
-    $vkh CLIENT LIST
+test valkeyCommandSimple-3.1.1 { Test ACL SETUSER wrong # args } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh ACL SETUSER
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
-} -returnCodes error -result {CLIENT LIST command requires a minimum of 1 arguments, but no arguments were given}
+} -returnCodes error -result {ACL SETUSER command requires a minimum of 1 arguments, but no arguments were given}
 
-# single word command: CLIENT KILL, requires at least 2 arguments
+# single word command: BITPOS, requires at least 2 arguments
 
-test valkeyCommandSimple-3.2.1 { Test BITOP wrong # args } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
-    $vkh CLIENT KILL 1
+test valkeyCommandSimple-3.2.1 { Test BITPOS wrong # args } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh BITPOS 1
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
-} -returnCodes error -result {CLIENT KILL command requires a minimum of 2 arguments, but only 1 argument was given}
+} -returnCodes error -result {BITPOS command requires a minimum of 2 arguments, but only 1 argument was given}
 
 test valkeyCommandSimple-4.1 { Test unknown command } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh foo
 } -cleanup {
     catch { $vkh destroy }

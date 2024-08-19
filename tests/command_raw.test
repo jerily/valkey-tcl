@@ -7,13 +7,13 @@ namespace import -force ::tcltest::test
 
 source [file join [file dirname [info script]] common.tcl]
 
-set ::valkey_server_args [list -e ALLOW_EMPTY_PASSWORD=yes]
-#set ::valkey_server_args [list -e VALKEY_PASSWORD=foo]
+set ::tcltest::valkey_server_args [list -e ALLOW_EMPTY_PASSWORD=yes]
+#set ::tcltest::valkey_server_args [list -e VALKEY_PASSWORD=foo]
 
 test valkeyCommandRaw-1.1 { Test raw command without arguments } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh raw
 } -cleanup {
     catch { $vkh destroy }
@@ -23,7 +23,7 @@ test valkeyCommandRaw-1.1 { Test raw command without arguments } -constraints { 
 test valkeyCommandRaw-2.1 { Test raw command, simple SET command } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh raw SET "foo" "bar"
 } -cleanup {
     catch { $vkh destroy }
@@ -33,7 +33,7 @@ test valkeyCommandRaw-2.1 { Test raw command, simple SET command } -constraints 
 test valkeyCommandRaw-2.2 { Test raw command, simple SET command, typed reply } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh configure -reply_typed 1
     $vkh raw SET "foo" "bar"
 } -cleanup {
@@ -44,7 +44,7 @@ test valkeyCommandRaw-2.2 { Test raw command, simple SET command, typed reply } 
 test valkeyCommandRaw-3.1 { Test raw command, simple GET command } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh raw SET "foo" "qux"
     $vkh raw GET "foo"
 } -cleanup {
@@ -55,7 +55,7 @@ test valkeyCommandRaw-3.1 { Test raw command, simple GET command } -constraints 
 test valkeyCommandRaw-3.2 { Test raw command, simple GET command, typed reply } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh raw SET "foo" "qux"
     $vkh configure -reply_typed 1
     $vkh raw GET "foo"

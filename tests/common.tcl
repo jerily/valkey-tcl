@@ -1,5 +1,5 @@
 
-set ::valkey_server_args [list]
+set ::tcltest::valkey_server_args [list]
 
 proc valkey_fake_server { op } {
 
@@ -10,17 +10,22 @@ proc valkey_fake_server { op } {
         }
 
         # some random port number
-        set ::vk_port 7921
-        set ::valkey_server_chan [socket -server [list apply {{args} {}}] $::vk_port]
+        set ::tcltest::vk_port 7921
+        set ::tcltest::valkey_server_chan [open "|[list \
+            [::tcltest::interpreter] \
+            [file join [file dirname [info script]] fake_server.tcl] \
+            $::tcltest::vk_port]" w+]
+        gets $::tcltest::valkey_server_chan line
 
     } elseif { $op eq "down" } {
 
-        if { ![info exists ::valkey_server_chan] } {
+        if { ![info exists ::tcltest::valkey_server_chan] } {
             return
         }
 
-        catch { close $::valkey_server_chan }
-        unset ::valkey_server_chan
+        catch { puts $::tcltest::valkey_server_chan "exit" }
+        catch { close $::tcltest::valkey_server_chan }
+        unset ::tcltest::valkey_server_chan
 
     }
 
@@ -30,28 +35,28 @@ proc valkey_server { op args } {
 
     if { $op eq "up" } {
 
-        if { [info exists ::valkey_server_chan] } {
+        if { [info exists ::tcltest::valkey_server_chan] } {
             return
         }
 
         valkey_server clean
 
         set cmd "|[list docker run --rm -e VALKEY_PORT_NUMBER=7000 -p 7000:7000 \
-            {*}$args {*}$::valkey_server_args bitnami/valkey:7.2.6] 2>@1"
+            {*}$args {*}$::tcltest::valkey_server_args bitnami/valkey:7.2.6] 2>@1"
 
         #puts "CMD: $cmd"
 
-        set ::valkey_server_chan [open $cmd w+]
+        set ::tcltest::valkey_server_chan [open $cmd w+]
 
         # Timeout is 30 seconds
-        after 30000 [list set ::valkey_server_ready "timeout reached"]
+        set timer_id [after 30000 [list set ::tcltest::valkey_server_ready "timeout reached"]]
 
-        fconfigure $::valkey_server_chan -blocking 1
+        fconfigure $::tcltest::valkey_server_chan -blocking 1
 
-        fileevent $::valkey_server_chan readable [list apply {{ chan } {
+        fileevent $::tcltest::valkey_server_chan readable [list apply {{ chan } {
             if { [gets $chan line] == -1 } {
                 fileevent $chan readable {}
-                set ::valkey_server_ready "EOF reached"
+                set ::tcltest::valkey_server_ready "EOF reached"
                 return
             }
             #
@@ -65,30 +70,32 @@ proc valkey_server { op args } {
             #
             if { [string first {Ready to accept connections tcp} $line] != -1 } {
                 fileevent $chan readable {}
-                set ::valkey_server_ready "ok"
+                set ::tcltest::valkey_server_ready "ok"
             }
-        }} $::valkey_server_chan]
+        }} $::tcltest::valkey_server_chan]
 
-        vwait ::valkey_server_ready
+        vwait ::tcltest::valkey_server_ready
 
-        if { $::valkey_server_ready ne "ok" } {
+        after cancel $timer_id
+
+        if { $::tcltest::valkey_server_ready ne "ok" } {
             catch { valkey_server down }
-            puts stderr "ERROR: while starting valkey server: $::valkey_server_ready"
+            puts stderr "ERROR: while starting valkey server: $::tcltest::valkey_server_ready"
             exit 1
         }
 
-        set ::vk_port 7000
+        set ::tcltest::vk_port 7000
 
     } elseif { $op eq "down" } {
 
-        if { ![info exists ::valkey_server_chan] } {
+        if { ![info exists ::tcltest::valkey_server_chan] } {
             return
         }
 
         valkey_server clean
 
-        catch { close $::valkey_server_chan }
-        unset ::valkey_server_chan
+        catch { close $::tcltest::valkey_server_chan }
+        unset ::tcltest::valkey_server_chan
 
     } elseif { $op eq "clean" } {
 

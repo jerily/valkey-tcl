@@ -1,0 +1,2 @@
+user cache -@dangerous -@admin -@slow -@blocking ~cache:* on >password1
+user admin +@all on >password2

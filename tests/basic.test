@@ -10,25 +10,25 @@ source [file join [file dirname [info script]] common.tcl]
 valkey_fake_server up
 
 test valkeyBasic-1.1.1 { Test basic connection using hostname } -body {
-    set vkh [valkey -host localhost -port $::vk_port]
+    set vkh [valkey -host localhost -port $::tcltest::vk_port]
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
 } -match glob -result {::valkey::handle0x*}
 
 test valkeyBasic-1.1.2 { Test basic connection using ipv4 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
 } -match glob -result {::valkey::handle0x*}
 
 test valkeyBasic-1.2 { Test error when connecting to not available service } -body {
-    valkey -host 127.0.0.1 -port [expr { $::vk_port + 1 }]
+    valkey -host 127.0.0.1 -port [expr { $::tcltest::vk_port + 1 }]
 } -returnCodes error -result {failed to connect: Connection refused}
 
 test valkeyBasic-1.3.1 { Test variable bound to valkey context } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port -var foo]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -var foo]
     string equal $vkh $foo
 } -cleanup {
     catch { $vkh destroy }
@@ -36,7 +36,7 @@ test valkeyBasic-1.3.1 { Test variable bound to valkey context } -body {
 } -result 1
 
 test valkeyBasic-1.3.2 { Test variable bound to valkey context, read-only } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port -var foo]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -var foo]
     set foo "x"
 } -cleanup {
     catch { $vkh destroy }
@@ -44,7 +44,7 @@ test valkeyBasic-1.3.2 { Test variable bound to valkey context, read-only } -bod
 } -returnCodes error -result {can't set "foo": readonly variable}
 
 test valkeyBasic-1.3.3 { Test variable bound to valkey context, writable when context is freed } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port -var foo]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -var foo]
     $vkh destroy
     set foo "1"
 } -cleanup {
@@ -53,7 +53,7 @@ test valkeyBasic-1.3.3 { Test variable bound to valkey context, writable when co
 } -result 1
 
 test valkeyBasic-1.3.4 { Test variable bound to valkey context, context commands are available via variable } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port -var foo]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -var foo]
     $foo
 } -cleanup {
     catch { $vkh destroy }
@@ -61,7 +61,7 @@ test valkeyBasic-1.3.4 { Test variable bound to valkey context, context commands
 } -returnCodes error -match glob -result {wrong # args: should be "::valkey::handle0x* command ?subcommand? ?arg ...?"}
 
 test valkeyBasic-1.3.5 { Test variable bound to valkey context, context commands are not available when context is freed } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port -var foo]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -var foo]
     $vkh destroy
     $foo
 } -cleanup {
@@ -70,7 +70,7 @@ test valkeyBasic-1.3.5 { Test variable bound to valkey context, context commands
 } -returnCodes error -match glob -result {invalid command name "::valkey::handle0x*"}
 
 test valkeyBasic-1.3.6 { Test variable bound to valkey context, context freed when unset variable is unset } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port -var foo]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -var foo]
     unset foo
     $vkh
 } -cleanup {
@@ -80,7 +80,7 @@ test valkeyBasic-1.3.6 { Test variable bound to valkey context, context freed wh
 
 test valkeyBasic-1.3.7 { Test variable bound to valkey context, context freed when unset variable is unset from local procedure variables } -body {
     proc valkeyBasic137 {} {
-        set vkh [valkey -host 127.0.0.1 -port $::vk_port -var foo]
+        set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -var foo]
         return $vkh
     }
     set vkh [valkeyBasic137]

@@ -1,0 +1,43 @@
+package require tcltest
+package require valkey
+
+namespace import -force ::tcltest::test
+
+::tcltest::configure {*}$argv
+
+source [file join [file dirname [info script]] common.tcl]
+
+valkey_fake_server up
+
+test valkeyReconn-1.1 { Test basic reconnect } -body {
+
+    set vkh [valkey -host localhost -port $::tcltest::vk_port]
+
+    # Restart fake server to drop connection to valkey
+    valkey_fake_server down
+    valkey_fake_server up
+
+    $vkh PING
+
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result PONG
+
+test valkeyReconn-1.2 { Test reconnect timeout } -body {
+
+    set vkh [valkey -host localhost -port $::tcltest::vk_port]
+    # Set known retry count
+    $vkh configure -retry_count 5
+
+    # Shutdown server
+    valkey_fake_server down
+
+    $vkh PING
+
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {Connection refused}
+
+valkey_fake_server down

@@ -19,6 +19,7 @@ typedef struct {
     /* options */
     int isReplyTyped;
     int isBlocking;
+    int retryCount;
 
 } vktcl_CtxType;
 

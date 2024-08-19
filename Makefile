@@ -5,12 +5,12 @@ endif
 #
 # Module name
 #
-MOD      =  tjson.so
+MOD      =  libtclvalkey.so
 
 #
 # Objects to build.
 #
-MODOBJS     = src/library.o src/cJSON/cJSON.o src/jsonpath/jsonpath.o src/custom_triple_notation/custom_triple_notation.o
+MODOBJS     = src/library.o src/tclvalkeyCmdSub.o src/tclvalkeyCtx.o src/tclvalkeyReply.o
 
 #MODLIBS  +=
 

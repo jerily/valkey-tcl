@@ -1,0 +1,140 @@
+package require tcltest
+package require valkey
+
+namespace import -force ::tcltest::test
+
+::tcltest::configure {*}$argv
+
+source [file join [file dirname [info script]] common.tcl]
+
+set ::tcltest::valkey_server_args [list -e ALLOW_EMPTY_PASSWORD=yes]
+
+test valkeyAuth-1.1 { Test connection to passwordless server without password option } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -match glob -result "::valkey::handle0x*"
+
+test valkeyAuth-1.2 { Test connection to passwordless server with password option } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -password foo]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {error when authenticating on the valkey server: ERR AUTH <password> called without any password configured for the default user. Are you sure your configuration is correct? (user: default)}
+
+test valkeyAuth-1.3 { Test connection to passwordless server with username option } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -username foo]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {-username can be only used when -password is specified}
+
+valkey_server down
+
+set ::tcltest::valkey_server_args [list -e VALKEY_PASSWORD=foo]
+
+test valkeyAuth-2.1 { Test connection to password-protected server without password option } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {valkey server requires authentication, but no password is provided}
+
+test valkeyAuth-2.2.1 { Test connection to password-protected server with wrong password, no username } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -password bar]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {error when authenticating on the valkey server: WRONGPASS invalid username-password pair or user is disabled. (user: default)}
+
+test valkeyAuth-2.2.2 { Test connection to password-protected server with wrong password, wrong username } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -password bar -username qux]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {error when authenticating on the valkey server: WRONGPASS invalid username-password pair or user is disabled. (user: qux)}
+
+test valkeyAuth-2.3.1 { Test connection to password-protected server with right password, no username } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -password foo]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -match glob -result "::valkey::handle0x*"
+
+test valkeyAuth-2.3.2 { Test connection to password-protected server with right password, wrong username } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -password foo -username qux]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {error when authenticating on the valkey server: WRONGPASS invalid username-password pair or user is disabled. (user: qux)}
+
+valkey_server down
+
+set ::tcltest::valkey_server_args [list \
+    -e ALLOW_EMPTY_PASSWORD=yes \
+    -e VALKEY_ACLFILE=/opt/bitnami/valkey/mounted-etc/users.acl \
+    -v "[file join [file dirname [info script]] test.acl]:/opt/bitnami/valkey/mounted-etc/users.acl"]
+
+test valkeyAuth-3.1 { Test connection to ACL-protected server without password option } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -match glob -result "::valkey::handle0x*"
+
+test valkeyAuth-3.2 { Test connection to ACL-protected server with wrong password } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -password foo]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {error when authenticating on the valkey server: ERR AUTH <password> called without any password configured for the default user. Are you sure your configuration is correct? (user: default)}
+
+test valkeyAuth-3.3.1 { Test connection to ACL-protected server with correct user/password } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -password password1 -username cache]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -match glob -result "::valkey::handle0x*"
+
+test valkeyAuth-3.3.2 { Test connection to ACL-protected server with correct user, incorrect password } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -password foo -username cache]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {error when authenticating on the valkey server: WRONGPASS invalid username-password pair or user is disabled. (user: cache)}
+
+test valkeyAuth-3.3.3 { Test connection to ACL-protected server with incorrect user, incorrect password } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -password foo -username bar]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {error when authenticating on the valkey server: WRONGPASS invalid username-password pair or user is disabled. (user: bar)}
+
+valkey_server down

@@ -11,6 +11,17 @@
 
 #include <sys/time.h> /* timeval struct */
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#ifndef STRICT
+#define STRICT // See MSDN Article Q83456
+#endif
+#include <windows.h> /* for Sleep() */
+#undef WIN32_LEAN_AND_MEAN
+#else
+#include <unistd.h> /* for usleep() */
+#endif /* _WIN32 */
+
 typedef enum {
     VK_SUBCOMMAND_RETURNS_REPLY,
     VK_SUBCOMMAND_CONFIGURE,
@@ -28,7 +39,7 @@ static const struct {
     { "configure", NULL, -1, VK_SUBCOMMAND_CONFIGURE,     vktcl_CtxHandleCmdSubConfigure },
     { "destroy",   NULL,  1, VK_SUBCOMMAND_DESTROY,       NULL },
 #define COMMAND(_type, _name, _subname, _arity, _keymethod, _keypos) \
-    { _name, _subname, _arity, VK_SUBCOMMAND_RETURNS_REPLY, vktcl_CtxHandleCmdSubUniversal },
+    { _name, _subname, ( _subname == NULL ? _arity : (_arity < 0 ? (_arity + 1) : (_arity - 1))), VK_SUBCOMMAND_RETURNS_REPLY, vktcl_CtxHandleCmdSubUniversal },
 #include "cmddef.h"
 #undef COMMAND
     { NULL, NULL, 0, 0, NULL }
@@ -180,6 +191,8 @@ static int vktcl_ValidateCommand(Tcl_Interp *interp, int objc, Tcl_Obj *const ob
         nargs = objc - 2;
     }
 
+
+
     // Now, let's check number of arguments for the given command
     DBG2(printf("command wants %d args, have %d args", vktcl_commands[idx].arg_num, nargs));
 
@@ -306,11 +319,6 @@ static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int obj
         goto error;
     }
 
-    if (ctx->vk_ctx->err) {
-        SetResult("valkey context is in error state");
-        goto error;
-    }
-
     int idx = vktcl_ValidateCommand(interp, objc, objv);
     if (idx < 0) {
         goto error;
@@ -328,9 +336,23 @@ static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int obj
         return TCL_OK;
     }
 
-    int command_words = (vktcl_commands[idx].word2 == NULL ? 1 : 2);
+    // Do not allow commands to be executed on a context in an error state.
+    // Verify that the current command is a command for the remote server by
+    // checking vktcl_commands[idx].type. We should allow commands
+    // like "configure" to pass even for contexts in error state.
+    if (ctx->vk_ctx->err && vktcl_commands[idx].type == VK_SUBCOMMAND_RETURNS_REPLY) {
+        SetResult("valkey context is in error state");
+        goto error;
+    }
 
-    valkeyReply *reply = vktcl_commands[idx].func(ctx, interp, command_words, objc, objv);
+    int command_words = (vktcl_commands[idx].word2 == NULL ? 1 : 2);
+    int retry = 0;
+    int retry_delay = 0;
+    valkeyReply *reply;
+
+retryCommand:
+
+    reply = vktcl_commands[idx].func(ctx, interp, command_words, objc, objv);
 
     // Special case for the configure command. It does not return
     // the valkey response, but the return code itself.
@@ -346,6 +368,40 @@ static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int obj
         // Otherwise, we will get an en error from the subcommand, and it should
         // set the appropriate error message to the interp result.
         if (ctx->vk_ctx->err) {
+
+retryConnect:
+
+            if (retry >= ctx->retryCount) {
+                DBG2(printf("number of retries exceeded, retry: %d, maximum: %d",
+                    retry, ctx->retryCount));
+                goto skipRetry;
+            }
+            retry++;
+
+            if (retry_delay) {
+                DBG2(printf("reconnect #%d after %d milliseconds", retry, retry_delay));
+#ifdef _WIN32
+                // Sleep is in milliseconds
+                Sleep(retry_delay);
+#else
+                // usleep is in microseconds
+                usleep(retry_delay * 1000);
+#endif /* _WIN32 */
+            } else {
+                DBG2(printf("reconnect #%d without delay", retry));
+            }
+            retry_delay = (retry_delay + 1) * 2;
+
+            if (valkeyReconnect(ctx->vk_ctx) == VALKEY_OK) {
+                DBG2(printf("reconnection was successful"));
+                goto retryCommand;
+            } else {
+                DBG2(printf("reconnection failed"));
+                goto retryConnect;
+            }
+
+skipRetry:
+
             DBG2(printf("return: ERROR (valkey: %s)", ctx->vk_ctx->errstr));
             SetResult(ctx->vk_ctx->errstr);
         } else {
@@ -416,6 +472,86 @@ static char *vktcl_CtxHandleVarTraceProc(ClientData clientData, Tcl_Interp *inte
 
 }
 
+static int vktcl_CheckAuth(Tcl_Interp *interp, valkeyContext *vk_ctx, int *isAuthRequired) {
+
+    int rc = TCL_OK;
+
+    DBG2(printf("send command: PING..."));
+
+    valkeyReply *reply = valkeyCommand(vk_ctx, "PING");
+
+    if (reply == NULL) {
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("error when checking valkey server"
+            " authentication status: %s", vk_ctx->errstr));
+        DBG2(printf("return: ERROR (got NULL)"));
+        return TCL_ERROR;
+    }
+
+    // If server requires authentication, it returns reply with:
+    //     type: VALKEY_REPLY_ERROR
+    //     str: NOAUTH Authentication required.
+    if (reply->type == VALKEY_REPLY_ERROR) {
+
+        DBG2(printf("got expected reply (error)"));
+
+        // Make sure that we have the expected error message
+        if (strncmp(reply->str, "NOAUTH ", 7) == 0) {
+            // We are good. Server requires authentication.
+            DBG2(printf("return: OK (auth required)"));
+            *isAuthRequired = 1;
+            goto done;
+        }
+
+        // We got unexpected error
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("got an unexpected error when"
+            " checking whether the valkey server requires authentication: %s",
+            reply->str));
+        DBG2(printf("return: ERROR (unexpected error reply: %s)", reply->str));
+        goto error;
+
+    }
+
+    // If we are here, then server returned not an error. We only expect
+    // a PONG response. Make sure that we have expected response.
+    if (reply->type == VALKEY_REPLY_STATUS) {
+
+        DBG2(printf("got expected reply (status)"));
+
+        // Make sure that we have expected message
+        if (strcmp(reply->str, "PONG") == 0) {
+            // We are good. Server does not require authentication.
+            DBG2(printf("return: OK (auth not required)"));
+            *isAuthRequired = 0;
+            goto done;
+        }
+
+        // We got unexpected message
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("got an unexpected message when"
+            " checking whether the valkey server requires authentication: %s",
+            reply->str));
+        DBG2(printf("return: ERROR (unexpected status reply: %s)", reply->str));
+        goto error;
+
+    }
+
+    // Let's complain about unexpected reply
+    Tcl_SetObjResult(interp, Tcl_ObjPrintf("got an unexpected reply type when"
+        " checking whether the valkey server requires authentication: %d",
+        (int)reply->type));
+    DBG2(printf("return: ERROR (unexpected reply type: %d)", (int)reply->type));
+    goto error;
+
+error:
+
+    rc = TCL_ERROR;
+
+done:
+
+    freeReplyObject(reply);
+    return rc;
+
+}
+
 static Tcl_Size copy_arg(void *clientData, Tcl_Interp *interp, Tcl_Size objc,
     Tcl_Obj *const *objv, void *dstPtr)
 {
@@ -440,7 +576,8 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
     int opt_port = 6379;
     int opt_ssl = 0;
     const char *opt_path = NULL;
-    const char *opt_password = NULL;
+    Tcl_Obj *opt_password = NULL;
+    const char *opt_username = NULL;
     int opt_timeout = -1;
     Tcl_Obj *opt_var = NULL;
 
@@ -453,7 +590,8 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
         { TCL_ARGV_INT,      "-port",     NULL,             &opt_port,     "post number to connect", NULL },
         { TCL_ARGV_CONSTANT, "-ssl",      INT2PTR(1),       &opt_ssl,      "use SSL/TLS for connection", NULL },
         { TCL_ARGV_STRING,   "-path",     NULL,             &opt_path,     "path to UNIX socket", NULL },
-        { TCL_ARGV_STRING,   "-password", NULL,             &opt_password, "password for connection", NULL },
+        { TCL_ARGV_GENFUNC,  "-password", copy_arg,         &opt_password, "password for authentication", "-password" },
+        { TCL_ARGV_STRING,   "-username", NULL,             &opt_username, "username for authentication", NULL },
         { TCL_ARGV_INT,      "-timeout",  NULL,             &opt_timeout,  "timeout value in milliseconds for connecting and sending commands", NULL },
         { TCL_ARGV_GENFUNC,  "-var",      copy_arg,         &opt_var,      "name of the variable to be associated with the created valkey context", "-var" },
         TCL_ARGV_AUTO_HELP, TCL_ARGV_TABLE_END
@@ -504,6 +642,12 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
         return TCL_ERROR;
     }
 
+    if (opt_password == NULL && opt_username != NULL) {
+        SetResult("-username can be only used when -password is specified");
+        DBG2(printf("return: ERROR (-username without -password)"));
+        return TCL_ERROR;
+    }
+
     valkeyOptions options;
     memset(&options, 0, sizeof(valkeyOptions));
     struct timeval timeout_connect, timeout_command;
@@ -539,26 +683,66 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
         Tcl_SetObjResult(interp, Tcl_ObjPrintf("failed to connect: %s",
             vk_ctx->errstr));
         DBG2(printf("return: ERROR (failed to connect: %s)", vk_ctx->errstr));
-        valkeyFree(vk_ctx);
-        return TCL_ERROR;
+        goto error;
     }
 
-    if (opt_password) {
-        valkeyReply *reply = valkeyCommand(vk_ctx, "AUTH %s", opt_password);
+    int isAuthRequired;
+    if (vktcl_CheckAuth(interp, vk_ctx, &isAuthRequired) != TCL_OK) {
+        goto error;
+    }
+
+    if (opt_password == NULL) {
+
+        if (isAuthRequired) {
+            SetResult("valkey server requires authentication, but no password is provided");
+            DBG2(printf("return: ERROR (no password)"));
+            goto error;
+        }
+
+        DBG2(printf("password is not specified and server accepts connections without a password"));
+
+    } else {
+
+        valkeyReply *reply;
+        Tcl_Size passwordLen;
+        const char *passwordStr = Tcl_GetStringFromObj(opt_password, &passwordLen);
+
+        if (opt_username == NULL) {
+            DBG2(printf("send auth command..."));
+            reply = valkeyCommand(vk_ctx, "AUTH %b", passwordStr, (size_t)passwordLen);
+        } else {
+            DBG2(printf("send auth command (user: %s) ...", opt_username));
+            reply = valkeyCommand(vk_ctx, "AUTH %s %b", opt_username, passwordStr, (size_t)passwordLen);
+        }
+
         if (reply == NULL) {
-            SetResult("failed to authenticate");
-            DBG2(printf("return: ERROR (failed to authenticate)"));
-            valkeyFree(vk_ctx);
-            return TCL_ERROR;
+            SetResult("error when authenticating on the valkey server: null reply");
+            DBG2(printf("return: ERROR (NULL reply)"));
+            goto error;
         }
+
         if (reply->type != VALKEY_REPLY_STATUS || strcmp(reply->str, "OK") != 0) {
-            SetResult("authentication failed");
-            DBG2(printf("return: ERROR (authentication failed)"));
+
+            Tcl_Obj *replyObj = NULL;
+            vktcl_ReplyToTclObject(reply, &replyObj, 0);
+
+            if (replyObj == NULL) {
+                replyObj = Tcl_NewStringObj("unknown reply", -1);
+            }
+
+            Tcl_SetObjResult(interp, Tcl_ObjPrintf("error when authenticating on"
+                " the valkey server: %s (user: %s)", Tcl_GetString(replyObj),
+                (opt_username == NULL ? "default" : opt_username)));
+            DBG2(printf("return: ERROR (%s)", Tcl_GetString(replyObj)));
+            Tcl_BounceRefCount(replyObj);
             freeReplyObject(reply);
-            valkeyFree(vk_ctx);
-            return TCL_ERROR;
+            goto error;
+
         }
+
+        DBG2(printf("authorization was successful"));
         freeReplyObject(reply);
+
     }
 
     vktcl_CtxType *ctx = vktcl_CtxNew(interp, vk_ctx);
@@ -591,6 +775,11 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
 
     DBG2(printf("return: ok [%s]", ctx->cmd));
     return TCL_OK;
+
+error:
+
+    valkeyFree(vk_ctx);
+    return TCL_ERROR;
 
 }
 
