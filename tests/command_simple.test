@@ -77,7 +77,7 @@ test valkeyCommandSimple-2.2.1 { Test BITOP wrong # args } -body {
     unset -nocomplain vkh
 } -returnCodes error -result {BITOP command requires a minimum of 3 arguments, but only 1 argument was given}
 
-# double word command: ACL SETUSER, requires at least 1 argument
+# double words command: ACL SETUSER, requires at least 1 argument
 
 test valkeyCommandSimple-3.1.1 { Test ACL SETUSER wrong # args } -body {
     set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
@@ -97,7 +97,31 @@ test valkeyCommandSimple-3.2.1 { Test BITPOS wrong # args } -body {
     unset -nocomplain vkh
 } -returnCodes error -result {BITPOS command requires a minimum of 2 arguments, but only 1 argument was given}
 
-test valkeyCommandSimple-4.1 { Test unknown command } -body {
+# command that doesn't accept arguments
+
+# single word command: ASKING, doesn't accept arguments
+
+test valkeyCommandSimple-4.1 { Test ASKING wrong # args } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh ASKING 1
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {ASKING command doesn't accept arguments, but 1 argument was given}
+
+# double words command: ACL HELP, doesn't accept arguments
+
+test valkeyCommandSimple-4.2 { Test ACL HELP wrong # args } -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh ACL HELP 1
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {ACL HELP command doesn't accept arguments, but 1 argument was given}
+
+# other tests
+
+test valkeyCommandSimple-5.1 { Test unknown command } -body {
     set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh foo
 } -cleanup {

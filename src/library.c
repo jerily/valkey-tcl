@@ -206,9 +206,9 @@ static int vktcl_ValidateCommand(Tcl_Interp *interp, int objc, Tcl_Obj *const ob
 
         // We have some arguments that cannot be accepted.
 
-        errmsg = Tcl_NewStringObj(vktcl_commands[i].word1, -1);
+        errmsg = Tcl_NewStringObj(vktcl_commands[idx].word1, -1);
         if (vktcl_commands[idx].word2 != NULL) {
-            Tcl_AppendPrintfToObj(errmsg, " %s", vktcl_commands[i].word2);
+            Tcl_AppendPrintfToObj(errmsg, " %s", vktcl_commands[idx].word2);
         }
         Tcl_AppendToObj(errmsg, " command doesn't accept arguments, but ", -1);
         if (nargs == 1) {
@@ -552,20 +552,32 @@ done:
 
 }
 
-static Tcl_Size copy_arg(void *clientData, Tcl_Interp *interp, Tcl_Size objc,
-    Tcl_Obj *const *objv, void *dstPtr)
-{
-    if (objc < 1) {
-        Tcl_SetObjResult(interp, Tcl_ObjPrintf("\"%s\" option requires an"
-            " additional argument", (char *)clientData));
-        return -1;
+// This function uses Tcl_ParseArgsObjv to parse arguments. However,
+// Tcl_ParseArgsObjv has the disadvantage that we cannot get the argument
+// value as a Tcl object.
+//
+// We can use TCL_ARGV_GENFUNC here. But this argument type is broken in
+// tcl8.6.14. It allows to redefine objc, but it doesn't allow to
+// increase srcIndex:
+//     https://github.com/tcltk/tcl/blob/ebd3331e6c2852474d5c953d3058d2677e766f4d/generic/tclIndexObj.c#L1239-L1244
+// In Tcl9 this argument type works. But we need to be compatible with Tcl8
+// as well.
+//
+// We can use TCL_ARGV_FUNC here. But this argument type does not allow us
+// to return an error if the value is missing.
+//
+// So here we'll use TCL_ARGV_FUNC, but set output to 1 if it doesn't have
+// a value. After Tcl_ParseArgsObjv, we will check if the variables contain
+// this value and return an appropriate error message.
+
+static int copy_arg(void *clientData, Tcl_Obj *objPtr, void *dstPtr) {
+    UNUSED(clientData);
+    if (objPtr == NULL) {
+        *((void **)dstPtr) = INT2PTR(1);
+    } else {
+        *((Tcl_Obj **)dstPtr) = objPtr;
     }
-    *((Tcl_Obj **)dstPtr) = objv[0];
-#if TCL_MAJOR_VERSION < 9
-    return objc - 1;
-#else
     return 1;
-#endif
 }
 
 static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
@@ -590,10 +602,10 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
         { TCL_ARGV_INT,      "-port",     NULL,             &opt_port,     "post number to connect", NULL },
         { TCL_ARGV_CONSTANT, "-ssl",      INT2PTR(1),       &opt_ssl,      "use SSL/TLS for connection", NULL },
         { TCL_ARGV_STRING,   "-path",     NULL,             &opt_path,     "path to UNIX socket", NULL },
-        { TCL_ARGV_GENFUNC,  "-password", copy_arg,         &opt_password, "password for authentication", "-password" },
+        { TCL_ARGV_FUNC,     "-password", copy_arg,         &opt_password, "password for authentication", NULL },
         { TCL_ARGV_STRING,   "-username", NULL,             &opt_username, "username for authentication", NULL },
         { TCL_ARGV_INT,      "-timeout",  NULL,             &opt_timeout,  "timeout value in milliseconds for connecting and sending commands", NULL },
-        { TCL_ARGV_GENFUNC,  "-var",      copy_arg,         &opt_var,      "name of the variable to be associated with the created valkey context", "-var" },
+        { TCL_ARGV_FUNC,     "-var",      copy_arg,         &opt_var,      "name of the variable to be associated with the created valkey context", NULL },
         TCL_ARGV_AUTO_HELP, TCL_ARGV_TABLE_END
     };
 #pragma GCC diagnostic pop
@@ -603,6 +615,20 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
     Tcl_Size temp_objc = objc;
     if (Tcl_ParseArgsObjv(interp, ArgTable, &temp_objc, objv, NULL) != TCL_OK) {
         DBG2(printf("return: ERROR (failed to parse args)"));
+        return TCL_ERROR;
+    }
+
+    if (opt_var == INT2PTR(1)) {
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("\"%s\" option requires an"
+            " additional argument", "-var"));
+        DBG2(printf("return: ERROR (missing value for -var)"));
+        return TCL_ERROR;
+    }
+
+    if (opt_password == INT2PTR(1)) {
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("\"%s\" option requires an"
+            " additional argument", "-password"));
+        DBG2(printf("return: ERROR (missing value for -password)"));
         return TCL_ERROR;
     }
 

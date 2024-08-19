@@ -158,7 +158,7 @@ DEFINE_SUBCMD(Configure) {
     for (opt = 0; opt < optionsCount; opt++) {
 
         Tcl_Obj *key = Tcl_NewStringObj(options[opt], -1);
-        Tcl_Obj *val;
+        Tcl_Obj *val = NULL;
 
         switch ((enum options)opt) {
         case optBlocking:
