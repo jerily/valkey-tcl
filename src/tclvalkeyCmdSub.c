@@ -90,12 +90,12 @@ DEFINE_SUBCMD(Configure) {
     DBG2(printf("enter, have %d arguments", objc));
 
     static const char *const options[] = {
-        "-blocking", "-reply_typed",
+        "-blocking", "-reply_typed", "-retry_count",
         NULL
     };
 
     enum options {
-        optBlocking, optReplyTyped,
+        optBlocking, optReplyTyped, optRetryCount,
         optionsCount
     };
 
@@ -117,14 +117,22 @@ DEFINE_SUBCMD(Configure) {
             goto error;
         }
 
-        // As for now, we have only boolean options
-
         int val;
-        if (Tcl_GetBooleanFromObj(NULL, objv[arg_idx], &val) != TCL_OK) {
-            Tcl_SetObjResult(interp, Tcl_ObjPrintf("expected a boolean value"
-                " for option \"%s\", but got \"%s\"", options[opt],
-                Tcl_GetString(objv[arg_idx])));
-            goto error;
+
+        if (opt == optRetryCount) {
+            if (Tcl_GetIntFromObj(NULL, objv[arg_idx], &val) != TCL_OK) {
+                Tcl_SetObjResult(interp, Tcl_ObjPrintf("expected an integer value"
+                    " for option \"%s\", but got \"%s\"", options[opt],
+                    Tcl_GetString(objv[arg_idx])));
+                goto error;
+            }
+        } else {
+            if (Tcl_GetBooleanFromObj(NULL, objv[arg_idx], &val) != TCL_OK) {
+                Tcl_SetObjResult(interp, Tcl_ObjPrintf("expected a boolean value"
+                    " for option \"%s\", but got \"%s\"", options[opt],
+                    Tcl_GetString(objv[arg_idx])));
+                goto error;
+            }
         }
 
         switch ((enum options)opt) {
@@ -133,6 +141,9 @@ DEFINE_SUBCMD(Configure) {
             break;
         case optReplyTyped:
             ctx->isReplyTyped = val;
+            break;
+        case optRetryCount:
+            ctx->retryCount = val;
             break;
         case optionsCount:
             break;
@@ -147,7 +158,7 @@ DEFINE_SUBCMD(Configure) {
     for (opt = 0; opt < optionsCount; opt++) {
 
         Tcl_Obj *key = Tcl_NewStringObj(options[opt], -1);
-        Tcl_Obj *val;
+        Tcl_Obj *val = NULL;
 
         switch ((enum options)opt) {
         case optBlocking:
@@ -155,6 +166,9 @@ DEFINE_SUBCMD(Configure) {
             break;
         case optReplyTyped:
             val = Tcl_NewBooleanObj(ctx->isReplyTyped);
+            break;
+        case optRetryCount:
+            val = Tcl_NewIntObj(ctx->retryCount);
             break;
         case optionsCount:
             break;

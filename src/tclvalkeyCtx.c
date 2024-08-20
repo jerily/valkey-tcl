@@ -30,6 +30,8 @@ vktcl_CtxType *vktcl_CtxNew(Tcl_Interp *interp, valkeyContext *vk_ctx) {
     rc->isReplyTyped = 0;
     rc->isBlocking = 1;
 
+    rc->retryCount = 5;
+
     Tcl_MutexLock(&vktcl_ctx2internal_mx);
 
     int newEntry;
@@ -187,7 +189,7 @@ void vktcl_CtxPackageInitialize(void) {
 
     if (!vktcl_ctx_ht_initialized) {
 
-        DBG2(printf("initialize"));
+        DBG2(printf("initialize valkey memory allocators"));
 
         valkeyAllocFuncs allocFuncs = {
                 .mallocFn = vktcl_alloc,
@@ -199,7 +201,7 @@ void vktcl_CtxPackageInitialize(void) {
 
         valkeySetAllocators(&allocFuncs);
 
-        DBG2(printf("initialize"));
+        DBG2(printf("initialize context hash table"));
 
         Tcl_InitHashTable(&vktcl_ctx2internal_ht, TCL_STRING_KEYS);
 

@@ -85,7 +85,8 @@ test valkeyArguments-2.1 { Test help message } -body {
 \t\tDefault value: 6379
  -ssl:      use SSL/TLS for connection
  -path:     path to UNIX socket
- -password: password for connection
+ -password: password for authentication
+ -username: username for authentication
  -timeout:  timeout value in milliseconds for connecting and sending commands
 \t\tDefault value: -1
  -var:      name of the variable to be associated with the created valkey context

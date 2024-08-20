@@ -7,12 +7,12 @@ namespace import -force ::tcltest::test
 
 source [file join [file dirname [info script]] common.tcl]
 
-set ::valkey_server_args [list -e ALLOW_EMPTY_PASSWORD=yes]
+set ::tcltest::valkey_server_args [list -e ALLOW_EMPTY_PASSWORD=yes]
 
 test valkeyCommand-1.1 { Test SET command } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh SET foo bar
 } -cleanup {
     catch { $vkh destroy }
@@ -22,7 +22,7 @@ test valkeyCommand-1.1 { Test SET command } -constraints { valkeyServer } -setup
 test valkeyCommand-2.1 { Test GET command } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh SET foo qux
     $vkh GET foo
 } -cleanup {
@@ -33,7 +33,7 @@ test valkeyCommand-2.1 { Test GET command } -constraints { valkeyServer } -setup
 test valkeyCommand-3.1 { Test PING command without arguments } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh PING
 } -cleanup {
     catch { $vkh destroy }
@@ -43,11 +43,76 @@ test valkeyCommand-3.1 { Test PING command without arguments } -constraints { va
 test valkeyCommand-3.2 { Test PING command with argument } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
     $vkh PING foo
 } -cleanup {
     catch { $vkh destroy }
     unset -nocomplain vkh
 } -result foo
+
+test valkeyCommand-4.1 { Test DEL command } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    set result [list]
+    $vkh SET foo qux
+    lappend result [$vkh GET foo]
+    $vkh DEL foo
+    lappend result [$vkh GET foo]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh result
+} -result {qux {}}
+
+test valkeyCommand-5.1 { Test RPUSH / LRANGE commands } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh DEL valkeyCommand-4.1
+    $vkh RPUSH valkeyCommand-4.1 "val1"
+    $vkh RPUSH valkeyCommand-4.1 "val2"
+    $vkh RPUSH valkeyCommand-4.1 "val3"
+    $vkh LRANGE valkeyCommand-4.1 0 -1
+} -cleanup {
+    catch { $vkh DEL valkeyCommand-4.1 }
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result {val1 val2 val3}
+
+test valkeyCommand-6.1 { Test RPUSH / LRANGE commands } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh DEL valkeyCommand-4.2
+    $vkh RPUSH valkeyCommand-4.2 "val1" "val2" "val3" "val4"
+    $vkh LTRIM valkeyCommand-4.2 2 -1
+    $vkh LRANGE valkeyCommand-4.2 0 -1
+} -cleanup {
+    catch { $vkh DEL valkeyCommand-4.2 }
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result {val3 val4}
+
+# Just to make sure this command is successful
+test valkeyCommand-7.1 { Test ACL HELP command } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh ACL HELP
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -match glob -result *
+
+test valkeyCommand-7.2 { Test ACL WHOAMI command } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    $vkh ACL WHOAMI
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result default
+
 
 valkey_server down
