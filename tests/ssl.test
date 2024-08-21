@@ -1,0 +1,43 @@
+package require tcltest
+package require valkey
+
+namespace import -force ::tcltest::test
+
+::tcltest::configure {*}$argv
+
+source [file join [file dirname [info script]] common.tcl]
+
+set ::tcltest::valkey_server_args [list -e ALLOW_EMPTY_PASSWORD=yes]
+
+test valkeySsl-1.1 { Test failure during connection using non-SSL context to SSL port } -constraints { valkeyServer valkeyEnabledSsl } -setup {
+    valkey_server up
+} -body {
+    valkey -host 127.0.0.1 -port $::tcltest::vk_port_ssl
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {error when checking valkey server authentication status: Server closed the connection}
+
+test valkeySsl-1.2 { Test failure during connection using SSL context to non-SSL port } -constraints { valkeyServer valkeyEnabledSsl } -setup {
+    valkey_server up
+} -body {
+    valkey -host 127.0.0.1 -port $::tcltest::vk_port -ssl -timeout 1000
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {failed to create SSL channel: SSL_connect failed: (null)}
+
+test valkeySsl-2.1 { Test SET command } -constraints { valkeyServer valkeyEnabledSsl } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port_ssl -ssl \
+        -ssl_ca_file [file join [file dirname [info script]] certs ca-cert.pem] \
+        -ssl_cert_file [file join [file dirname [info script]] certs client-cert.pem] \
+        -ssl_key_file [file join [file dirname [info script]] certs client-key.pem]]
+    $vkh SET foo bar
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result OK
+
+valkey_server down

@@ -9,7 +9,7 @@ source [file join [file dirname [info script]] common.tcl]
 
 set ::tcltest::valkey_server_args [list -e ALLOW_EMPTY_PASSWORD=yes]
 
-test valkeyCommand-1.1 { Test SET command } -constraints { valkeyServer } -setup {
+test valkeyCommand-1.1.1 { Test SET command } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
     set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
@@ -19,7 +19,17 @@ test valkeyCommand-1.1 { Test SET command } -constraints { valkeyServer } -setup
     unset -nocomplain vkh
 } -result OK
 
-test valkeyCommand-2.1 { Test GET command } -constraints { valkeyServer } -setup {
+test valkeyCommand-1.1.2 { Test SET command with typed reply } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -reply_typed]
+    $vkh SET foo bar
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result {STATUS OK}
+
+test valkeyCommand-2.1.1 { Test GET command } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
     set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
@@ -29,6 +39,17 @@ test valkeyCommand-2.1 { Test GET command } -constraints { valkeyServer } -setup
     catch { $vkh destroy }
     unset -nocomplain vkh
 } -result qux
+
+test valkeyCommand-2.1.2 { Test GET command with typed reply } -constraints { valkeyServer } -setup {
+    valkey_server up
+} -body {
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -reply_typed]
+    $vkh SET foo qux
+    $vkh GET foo
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -result {STRING qux}
 
 test valkeyCommand-3.1 { Test PING command without arguments } -constraints { valkeyServer } -setup {
     valkey_server up

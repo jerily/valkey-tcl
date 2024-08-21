@@ -8,6 +8,18 @@
 
 #include "common.h"
 
+#ifdef ENABLE_SSL
+#define VALKEYTCL_PKGCONFIG_ENABLE_SSL "1"
+#else
+#define VALKEYTCL_PKGCONFIG_ENABLE_SSL "0"
+#endif /* ENABLE_SSL */
+
+static Tcl_Config const tclvalkey_pkgconfig[] = {
+    { "package-version", XSTR(VERSION) },
+    { "feature-ssl",     VALKEYTCL_PKGCONFIG_ENABLE_SSL },
+    {NULL, NULL}
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif

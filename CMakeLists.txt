@@ -6,6 +6,8 @@ set(CMAKE_C_STANDARD   11)
 set(CMAKE_C_STANDARD_REQUIRED true)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
+OPTION(ENABLE_SSL "Build valkey-tcl with SSL support" OFF)
+
 if(WIN32)
     # Prefix all shared libraries with 'lib'.
     set(CMAKE_SHARED_LIBRARY_PREFIX "lib")
@@ -14,6 +16,18 @@ if(WIN32)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+message(STATUS "ENABLE_SSL: ${ENABLE_SSL}")
+IF(ENABLE_SSL)
+    find_package(valkey_ssl REQUIRED)
+    message(STATUS "valkey_ssl_LIBRARIES: ${valkey_ssl_LIBRARIES}")
+    message(STATUS "valkey_ssl_INCLUDE_DIRS: ${valkey_ssl_INCLUDEDIR}")
+endif()
+
+find_package(valkey REQUIRED)
+message(STATUS "valkey_LIBRARIES: ${valkey_LIBRARIES}")
+message(STATUS "valkey_INCLUDE_DIRS: ${valkey_INCLUDEDIR}")
+
 find_package(TCL 8.6.13 REQUIRED)  # TCL_INCLUDE_PATH TCL_LIBRARY
 find_program(TCL_TCLSH
   NAMES
@@ -25,7 +39,6 @@ find_program(TCL_TCLSH
       ${TCL_INCLUDE_PATH}/../../bin
   NO_DEFAULT_PATH
 )
-find_package(valkey REQUIRED)
 
 message(STATUS "TCL_INCLUDE_PATH: ${TCL_INCLUDE_PATH}")
 message(STATUS "TCL_LIBRARY: ${TCL_LIBRARY}")
@@ -75,6 +88,11 @@ set_target_properties(tclvalkey PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 include_directories(${TCL_INCLUDE_PATH} ${valkey_INCLUDE_DIRS})
 target_link_libraries(tclvalkey PRIVATE ${TCL_LIBRARY} ${valkey_LIBRARIES})
+IF(ENABLE_SSL)
+    target_link_libraries(tclvalkey PRIVATE ${valkey_ssl_LIBRARIES})
+    include_directories(${TCL_INCLUDE_PATH} ${valkey_ssl_INCLUDE_DIRS})
+    add_compile_definitions(ENABLE_SSL)
+endif()
 get_filename_component(TCL_LIBRARY_PATH "${TCL_LIBRARY}" PATH)
 
 install(TARGETS ${TARGET}
