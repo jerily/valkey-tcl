@@ -24,7 +24,6 @@
 
 typedef enum {
     VK_SUBCOMMAND_RETURNS_REPLY,
-    VK_SUBCOMMAND_CONFIGURE,
     VK_SUBCOMMAND_DESTROY
 } vktcl_CommandType;
 
@@ -36,7 +35,6 @@ static const struct {
     vktcl_SubCmdProc *func;
 } vktcl_commands[] = {
     { "raw",       NULL, -2, VK_SUBCOMMAND_RETURNS_REPLY, vktcl_CtxHandleCmdSubRaw },
-    { "configure", NULL, -1, VK_SUBCOMMAND_CONFIGURE,     vktcl_CtxHandleCmdSubConfigure },
     { "destroy",   NULL,  1, VK_SUBCOMMAND_DESTROY,       NULL },
 #define COMMAND(_type, _name, _subname, _arity, _keymethod, _keypos) \
     { _name, _subname, ( _subname == NULL ? _arity : (_arity < 0 ? (_arity + 1) : (_arity - 1))), VK_SUBCOMMAND_RETURNS_REPLY, vktcl_CtxHandleCmdSubUniversal },
@@ -338,8 +336,8 @@ static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int obj
 
     // Do not allow commands to be executed on a context in an error state.
     // Verify that the current command is a command for the remote server by
-    // checking vktcl_commands[idx].type. We should allow commands
-    // like "configure" to pass even for contexts in error state.
+    // checking vktcl_commands[idx].type. We should allow other commands
+    // to pass even if context is in error state.
     if (ctx->vk_ctx->err && vktcl_commands[idx].type == VK_SUBCOMMAND_RETURNS_REPLY) {
         SetResult("valkey context is in error state");
         goto error;
@@ -353,14 +351,6 @@ static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int obj
 retryCommand:
 
     reply = vktcl_commands[idx].func(ctx, interp, command_words, objc, objv);
-
-    // Special case for the configure command. It does not return
-    // the valkey response, but the return code itself.
-    if (vktcl_commands[idx].type == VK_SUBCOMMAND_CONFIGURE) {
-        rc = PTR2INT(reply);
-        DBG2(printf("return: %s (raw response)", (rc == TCL_OK ? "OK" : "ERROR")));
-        goto done;
-    }
 
     // Check of error
     if (reply == NULL) {
@@ -587,25 +577,35 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
     const char *opt_host = NULL;
     int opt_port = 6379;
     int opt_ssl = 0;
+    const char *opt_ssl_ca_file = NULL;
+    const char *opt_ssl_cert_file = NULL;
+    const char *opt_ssl_key_file = NULL;
     const char *opt_path = NULL;
     Tcl_Obj *opt_password = NULL;
     const char *opt_username = NULL;
     int opt_timeout = -1;
     Tcl_Obj *opt_var = NULL;
+    int opt_retry_count = 5;
+    int opt_reply_typed = 0;
 
 #pragma GCC diagnostic push
 // ignore warning for copy_arg:
 //     warning: ISO C forbids conversion of function pointer to object pointer type [-Wpedantic]
 #pragma GCC diagnostic ignored "-Wpedantic"
     Tcl_ArgvInfo ArgTable[] = {
-        { TCL_ARGV_STRING,   "-host",     NULL,             &opt_host,     "hostname to connect", NULL },
-        { TCL_ARGV_INT,      "-port",     NULL,             &opt_port,     "post number to connect", NULL },
-        { TCL_ARGV_CONSTANT, "-ssl",      INT2PTR(1),       &opt_ssl,      "use SSL/TLS for connection", NULL },
-        { TCL_ARGV_STRING,   "-path",     NULL,             &opt_path,     "path to UNIX socket", NULL },
-        { TCL_ARGV_FUNC,     "-password", copy_arg,         &opt_password, "password for authentication", NULL },
-        { TCL_ARGV_STRING,   "-username", NULL,             &opt_username, "username for authentication", NULL },
-        { TCL_ARGV_INT,      "-timeout",  NULL,             &opt_timeout,  "timeout value in milliseconds for connecting and sending commands", NULL },
-        { TCL_ARGV_FUNC,     "-var",      copy_arg,         &opt_var,      "name of the variable to be associated with the created valkey context", NULL },
+        { TCL_ARGV_STRING,   "-path",          NULL,       &opt_path,          "path to UNIX socket", NULL },
+        { TCL_ARGV_STRING,   "-host",          NULL,       &opt_host,          "hostname to connect", NULL },
+        { TCL_ARGV_INT,      "-port",          NULL,       &opt_port,          "post number to connect", NULL },
+        { TCL_ARGV_CONSTANT, "-ssl",           INT2PTR(1), &opt_ssl,           "use SSL/TLS for connection", NULL },
+        { TCL_ARGV_STRING,   "-ssl_ca_file",   NULL,       &opt_ssl_ca_file,   "path to a CA certificate/bundle", NULL },
+        { TCL_ARGV_STRING,   "-ssl_cert_file", NULL,       &opt_ssl_cert_file, "path to a client SSL certificate", NULL },
+        { TCL_ARGV_STRING,   "-ssl_key_file",  NULL,       &opt_ssl_key_file,  "path to a key to the client SSL certificate", NULL },
+        { TCL_ARGV_FUNC,     "-password",      copy_arg,   &opt_password,      "password for authentication", NULL },
+        { TCL_ARGV_STRING,   "-username",      NULL,       &opt_username,      "username for authentication", NULL },
+        { TCL_ARGV_INT,      "-timeout",       NULL,       &opt_timeout,       "timeout value in milliseconds for connecting and sending commands", NULL },
+        { TCL_ARGV_FUNC,     "-var",           copy_arg,   &opt_var,           "name of the variable to be associated with the created valkey context", NULL },
+        { TCL_ARGV_INT,      "-retry_count",   NULL,       &opt_retry_count,   "number of attempts to send a command in case of connection issues", NULL },
+        { TCL_ARGV_CONSTANT, "-reply_typed",   INT2PTR(1), &opt_reply_typed,   "return a reply type along with a message", NULL },
         TCL_ARGV_AUTO_HELP, TCL_ARGV_TABLE_END
     };
 #pragma GCC diagnostic pop
@@ -635,10 +635,15 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
     DBG2(printf("opt_host: [%s]", (opt_host == NULL ? "<NULL>" : opt_host)));
     DBG2(printf("opt_port: [%d]", opt_port));
     DBG2(printf("opt_ssl: %s", (opt_ssl ? "true" : "false")));
+    DBG2(printf("opt_ssl_ca_file: %s", (opt_ssl_ca_file == NULL ? "<NULL>" : opt_ssl_ca_file)));
+    DBG2(printf("opt_ssl_cert_file: %s", (opt_ssl_cert_file == NULL ? "<NULL>" : opt_ssl_cert_file)));
+    DBG2(printf("opt_ssl_key_file: %s", (opt_ssl_key_file == NULL ? "<NULL>" : opt_ssl_key_file)));
     DBG2(printf("opt_path: [%s]", (opt_path == NULL ? "<NULL>" : opt_path)));
     DBG2(printf("opt_password: [%s]", (opt_password == NULL ? "<NULL>" : "<hidden>")));
     DBG2(printf("opt_timeout: %d", opt_timeout));
     DBG2(printf("opt_var: [%s]", (opt_var == NULL ? "<NULL>" : Tcl_GetString(opt_var))));
+    DBG2(printf("opt_retry_count: %d", opt_retry_count));
+    DBG2(printf("opt_reply_typed: %s", (opt_reply_typed ? "true" : "false")));
 
     // Validate arguments
 
@@ -653,6 +658,14 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
         DBG2(printf("return: ERROR (both -host and -path)"));
         return TCL_ERROR;
     }
+
+#ifndef ENABLE_SSL
+    if (opt_ssl || opt_ssl_ca_file != NULL) {
+        SetResult("this package was built without SSL support");
+        DBG2(printf("return: ERROR (no ssl support)"));
+        return TCL_ERROR;
+    }
+#endif /* ENABLE_SSL */
 
     if (opt_ssl && opt_host == NULL) {
         SetResult("-ssl can be only used when -host is specified");
@@ -698,6 +711,10 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
 
     DBG2(printf("create valkey context"));
 
+#ifdef ENABLE_SSL
+    valkeySSLContext *ssl = NULL;
+#endif /* ENABLE_SSL */
+
     valkeyContext *vk_ctx = valkeyConnectWithOptions(&options);
     if (vk_ctx == NULL) {
         SetResult("failed to allocate valkey context");
@@ -711,6 +728,36 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
         DBG2(printf("return: ERROR (failed to connect: %s)", vk_ctx->errstr));
         goto error;
     }
+
+#ifdef ENABLE_SSL
+    if (opt_ssl) {
+
+        DBG2(printf("initialize SSL context"));
+
+        valkeySSLContextError ssl_error = VALKEY_SSL_CTX_NONE;
+        ssl = valkeyCreateSSLContext(opt_ssl_ca_file, NULL, opt_ssl_cert_file,
+            opt_ssl_key_file, NULL, &ssl_error);
+
+        if(ssl == NULL || ssl_error != VALKEY_SSL_CTX_NONE) {
+            Tcl_SetObjResult(interp, Tcl_ObjPrintf("failed to initialize SSL: %s",
+                (ssl_error != VALKEY_SSL_CTX_NONE ? valkeySSLContextGetError(ssl_error) : "Unknown error")));
+            DBG2(printf("return: ERROR (ssl ctx failed: %s)",
+                (ssl_error != VALKEY_SSL_CTX_NONE ? valkeySSLContextGetError(ssl_error) : "Unknown error")));
+            goto error;
+        }
+
+        DBG2(printf("initialize valkey SSL context"));
+
+        if (valkeyInitiateSSLWithContext(vk_ctx, ssl) != VALKEY_OK) {
+            Tcl_SetObjResult(interp, Tcl_ObjPrintf("failed to create SSL channel: %s",
+                vk_ctx->errstr));
+            DBG2(printf("return: ERROR (ssl channel failed: %s)", vk_ctx->errstr));
+            goto error;
+        }
+
+    }
+#endif /* ENABLE_SSL */
+
 
     int isAuthRequired;
     if (vktcl_CheckAuth(interp, vk_ctx, &isAuthRequired) != TCL_OK) {
@@ -775,9 +822,14 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
     if (ctx == NULL) {
         SetResult("failed to add valkey context");
         DBG2(printf("return: ERROR (failed add context)"));
-        valkeyFree(vk_ctx);
-        return TCL_ERROR;
+        goto error;
     }
+
+    ctx->retryCount = opt_retry_count;
+    ctx->isReplyTyped = opt_reply_typed;
+#ifdef ENABLE_SSL
+    ctx->ssl = ssl;
+#endif /* ENABLE_SSL */
 
     DBG2(printf("create command: %s", ctx->cmd));
     ctx->cmdToken = Tcl_CreateObjCommand(interp, ctx->cmd, vktcl_CtxHandleCmd,
@@ -805,6 +857,11 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
 error:
 
     valkeyFree(vk_ctx);
+#ifdef ENABLE_SSL
+    if (ssl != NULL) {
+        valkeyFreeSSLContext(ssl);
+    }
+#endif /* ENABLE_SSL */
     return TCL_ERROR;
 
 }
@@ -825,6 +882,8 @@ int Tclvalkey_Init(Tcl_Interp *interp) {
     vktcl_CtxPackageInitialize();
     Tcl_CreateNamespace(interp, "::valkey", NULL, NULL);
     Tcl_CreateObjCommand(interp, "valkey", vktcl_CtxNewCmd, NULL, NULL);
+
+    Tcl_RegisterConfig(interp, "valkey", tclvalkey_pkgconfig, "iso8859-1");
 
     return Tcl_PkgProvide(interp, "valkey", XSTR(VERSION));
 

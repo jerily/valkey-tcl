@@ -1,4 +1,7 @@
 
+tcltest::testConstraint valkeyEnabledSsl [valkey::pkgconfig get feature-ssl]
+tcltest::testConstraint valkeyDisabledSsl [expr { ! [valkey::pkgconfig get feature-ssl] }]
+
 set ::tcltest::valkey_server_args [list]
 
 proc valkey_fake_server { op } {
@@ -41,7 +44,14 @@ proc valkey_server { op args } {
 
         valkey_server clean
 
-        set cmd "|[list docker run --rm -e VALKEY_PORT_NUMBER=7000 -p 7000:7000 \
+        set cmd "|[list docker run --rm \
+            -e VALKEY_PORT_NUMBER=7000 -p 7000:7000 \
+            -e VALKEY_TLS_ENABLED=yes \
+            -e VALKEY_TLS_PORT_NUMBER=7001 -p 7001:7001 \
+            -v "[file join [file dirname [info script]] certs]:/opt/bitnami/valkey/certs" \
+            -e VALKEY_TLS_CERT_FILE=/opt/bitnami/valkey/certs/server-cert.pem \
+            -e VALKEY_TLS_KEY_FILE=/opt/bitnami/valkey/certs/server-key.pem \
+            -e VALKEY_TLS_CA_FILE=/opt/bitnami/valkey/certs/ca-cert.pem \
             {*}$args {*}$::tcltest::valkey_server_args bitnami/valkey:7.2.6] 2>@1"
 
         #puts "CMD: $cmd"
@@ -85,6 +95,7 @@ proc valkey_server { op args } {
         }
 
         set ::tcltest::vk_port 7000
+        set ::tcltest::vk_port_ssl 7001
 
     } elseif { $op eq "down" } {
 

@@ -17,6 +17,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <valkey/valkey.h>
+#ifdef ENABLE_SSL
+#include <valkey/valkey_ssl.h>
+#endif /* ENABLE_SSL */
 
 #ifndef TCL_SIZE_MAX
 typedef int Tcl_Size;

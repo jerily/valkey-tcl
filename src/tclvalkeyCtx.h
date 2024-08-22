@@ -16,6 +16,10 @@ typedef struct {
     int refcount;
     Tcl_Mutex mx;
 
+#ifdef ENABLE_SSL
+    valkeySSLContext *ssl;
+#endif /* ENABLE_SSL */
+
     /* options */
     int isReplyTyped;
     int isBlocking;

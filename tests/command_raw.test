@@ -33,8 +33,7 @@ test valkeyCommandRaw-2.1 { Test raw command, simple SET command } -constraints 
 test valkeyCommandRaw-2.2 { Test raw command, simple SET command, typed reply } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
-    $vkh configure -reply_typed 1
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -reply_typed]
     $vkh raw SET "foo" "bar"
 } -cleanup {
     catch { $vkh destroy }
@@ -55,9 +54,8 @@ test valkeyCommandRaw-3.1 { Test raw command, simple GET command } -constraints 
 test valkeyCommandRaw-3.2 { Test raw command, simple GET command, typed reply } -constraints { valkeyServer } -setup {
     valkey_server up
 } -body {
-    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port]
+    set vkh [valkey -host 127.0.0.1 -port $::tcltest::vk_port -reply_typed]
     $vkh raw SET "foo" "qux"
-    $vkh configure -reply_typed 1
     $vkh raw GET "foo"
 } -cleanup {
     catch { $vkh destroy }

@@ -19,6 +19,9 @@ vktcl_CtxType *vktcl_CtxNew(Tcl_Interp *interp, valkeyContext *vk_ctx) {
         return NULL;
     }
 
+#ifdef ENABLE_SSL
+    rc->ssl = NULL;
+#endif /* ENABLE_SSL */
     rc->mx = NULL;
     rc->refcount = 0;
     rc->vk_ctx = vk_ctx;
@@ -71,10 +74,17 @@ static void vktcl_CtxRemove(vktcl_CtxType *ctx) {
 void vktcl_CtxClose(vktcl_CtxType *ctx) {
     vktcl_CtxLock(ctx);
     if (ctx->vk_ctx != NULL) {
-        DBG2(printf("closed %p", (void *)ctx));
+        DBG2(printf("free vk ctx"));
         valkeyFree(ctx->vk_ctx);
         ctx->vk_ctx = NULL;
     }
+#ifdef ENABLE_SSL
+    if (ctx->ssl != NULL) {
+        DBG2(printf("free ssl ctx"));
+        valkeyFreeSSLContext(ctx->ssl);
+        ctx->ssl = NULL;
+    }
+#endif /* ENABLE_SSL */
     vktcl_CtxUnlock(ctx);
     return;
 }
@@ -200,6 +210,10 @@ void vktcl_CtxPackageInitialize(void) {
         };
 
         valkeySetAllocators(&allocFuncs);
+
+#ifdef ENABLE_SSL
+        valkeyInitOpenSSL();
+#endif /* ENABLE_SSL */
 
         DBG2(printf("initialize context hash table"));
 

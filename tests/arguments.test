@@ -3,6 +3,8 @@ package require valkey
 
 namespace import -force ::tcltest::test
 
+source [file join [file dirname [info script]] common.tcl]
+
 ::tcltest::configure {*}$argv
 
 test valkeyArguments-1.1 { Test error for command without args } -body {
@@ -73,22 +75,32 @@ test valkeyArguments-1.17 { Test error for -var without argument } -body {
     valkey -host 1 -password foo -var
 } -returnCodes error -result {"-var" option requires an additional argument}
 
-test valkeyArguments-1.18 { Test error for -ssl without -host } -body {
+test valkeyArguments-1.18 { Test error for -ssl without -host } -constraints { valkeyEnabledSsl } -body {
     valkey -path foo -ssl
 } -returnCodes error -result {-ssl can be only used when -host is specified}
+
+test valkeyArguments-1.19 { Test error for -ssl when built without SSL support } -constraints { valkeyDisabledSsl } -body {
+    valkey -path foo -ssl
+} -returnCodes error -result {this package was built without SSL support}
 
 test valkeyArguments-2.1 { Test help message } -body {
     valkey -help
 } -returnCodes error -result "Command-specific options:
- -host:     hostname to connect
- -port:     post number to connect
+ -path:          path to UNIX socket
+ -host:          hostname to connect
+ -port:          post number to connect
 \t\tDefault value: 6379
- -ssl:      use SSL/TLS for connection
- -path:     path to UNIX socket
- -password: password for authentication
- -username: username for authentication
- -timeout:  timeout value in milliseconds for connecting and sending commands
+ -ssl:           use SSL/TLS for connection
+ -ssl_ca_file:   path to a CA certificate/bundle
+ -ssl_cert_file: path to a client SSL certificate
+ -ssl_key_file:  path to a key to the client SSL certificate
+ -password:      password for authentication
+ -username:      username for authentication
+ -timeout:       timeout value in milliseconds for connecting and sending commands
 \t\tDefault value: -1
- -var:      name of the variable to be associated with the created valkey context
- -help:     Print summary of command-line options and abort"
+ -var:           name of the variable to be associated with the created valkey context
+ -retry_count:   number of attempts to send a command in case of connection issues
+\t\tDefault value: 5
+ -reply_typed:   return a reply type along with a message
+ -help:          Print summary of command-line options and abort"
 

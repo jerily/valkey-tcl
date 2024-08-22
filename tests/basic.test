@@ -95,4 +95,27 @@ test valkeyBasic-2.1 { Test error message for non-existing UNIX socket } -body {
     valkey -path non-existing-file
 } -returnCodes error -match glob -result {failed to connect: No such file or directory}
 
+test valkeyBasic-3.1 { Test wrong value for -retry_count } -body {
+    set vkh [valkey -host localhost -port $::tcltest::vk_port -retry_count a]
+} -cleanup {
+    catch { $vkh destroy }
+    unset -nocomplain vkh
+} -returnCodes error -result {expected integer argument for "-retry_count" but got "a"}
+
+test valkeyBasic-4.1 { Test pkgconfig list } -body {
+    ::valkey::pkgconfig list
+} -result {package-version feature-ssl}
+
+test valkeyBasic-4.2 { Test pkgconfig get package-version } -body {
+    ::valkey::pkgconfig get package-version
+} -match glob -result "*.*.*"
+
+test valkeyBasic-4.3.1 { Test pkgconfig get feature-ssl } -constraints { valkeyEnabledSsl } -body {
+    ::valkey::pkgconfig get feature-ssl
+} -result 1
+
+test valkeyBasic-4.3.2 { Test pkgconfig get feature-ssl } -constraints { valkeyDisabledSsl } -body {
+    ::valkey::pkgconfig get feature-ssl
+} -result 0
+
 valkey_fake_server down
