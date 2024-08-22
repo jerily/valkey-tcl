@@ -88,7 +88,7 @@ test valkeyArguments-2.1 { Test help message } -body {
 } -returnCodes error -result "Command-specific options:
  -path:          path to UNIX socket
  -host:          hostname to connect
- -port:          post number to connect
+ -port:          port number to connect
 \t\tDefault value: 6379
  -ssl:           use SSL/TLS for connection
  -ssl_ca_file:   path to a CA certificate/bundle
