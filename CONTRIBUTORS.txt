@@ -1,6 +1,6 @@
 This file contains a list of people who have made large contributions to valkey-tcl.
 
-Original ttrek design and implementation:
+Original design and implementation:
   Neofytos Dimitriou <neo@jerily.cy>
 
 Large code contributions:
