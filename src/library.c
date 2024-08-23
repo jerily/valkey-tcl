@@ -595,7 +595,7 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
     Tcl_ArgvInfo ArgTable[] = {
         { TCL_ARGV_STRING,   "-path",          NULL,       &opt_path,          "path to UNIX socket", NULL },
         { TCL_ARGV_STRING,   "-host",          NULL,       &opt_host,          "hostname to connect", NULL },
-        { TCL_ARGV_INT,      "-port",          NULL,       &opt_port,          "post number to connect", NULL },
+        { TCL_ARGV_INT,      "-port",          NULL,       &opt_port,          "port number to connect", NULL },
         { TCL_ARGV_CONSTANT, "-ssl",           INT2PTR(1), &opt_ssl,           "use SSL/TLS for connection", NULL },
         { TCL_ARGV_STRING,   "-ssl_ca_file",   NULL,       &opt_ssl_ca_file,   "path to a CA certificate/bundle", NULL },
         { TCL_ARGV_STRING,   "-ssl_cert_file", NULL,       &opt_ssl_cert_file, "path to a client SSL certificate", NULL },
