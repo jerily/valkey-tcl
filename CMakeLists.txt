@@ -84,7 +84,17 @@ add_library(tclvalkey SHARED
     src/tclvalkeyReply.c
     src/tclvalkeyReply.h
 )
-set_target_properties(tclvalkey PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Ensure the RPATH is used when installing
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+# Set the RPATH to be used when installing
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib/")
+
+# Do not use the install RPATH for the build
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+
+set_target_properties(tclvalkey PROPERTIES POSITION_INDEPENDENT_CODE ON INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib/")
 
 include_directories(${TCL_INCLUDE_PATH} ${valkey_INCLUDE_DIRS})
 target_link_libraries(tclvalkey PRIVATE ${TCL_LIBRARY} ${valkey_LIBRARIES})
