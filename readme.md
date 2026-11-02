@@ -56,6 +56,9 @@ make
 make install
 ```
 
+Current libvalkey uses `-DENABLE_TLS=ON`; valkey-tcl accepts its TLS library
+as well as the older `valkey_ssl` library. Keep `-DENABLE_SSL=ON` for valkey-tcl.
+
 For a successful build with support for SSL connections, the developer packages from OpenSSL must be installed in the system. For example, for the Ubuntu distribution, developer packages can be installed using this command:
 
 ```bash

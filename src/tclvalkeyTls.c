@@ -57,7 +57,12 @@ int vktcl_StartTLS(Tcl_Interp *interp, valkeyContext *vk_ctx, SSL_CTX *ssl_ctx) 
         SSL_free(ssl);
         return TCL_ERROR;
     }
-    if (valkeyInitiateSSL(vk_ctx, ssl) != VALKEY_OK) {
+#ifdef LIBVALKEY_TLS
+    int result = valkeyInitiateTLS(vk_ctx, ssl);
+#else
+    int result = valkeyInitiateSSL(vk_ctx, ssl);
+#endif
+    if (result != VALKEY_OK) {
         Tcl_SetObjResult(interp, Tcl_ObjPrintf("failed to create SSL channel: %s",
             vk_ctx->errstr));
         SSL_free(ssl);

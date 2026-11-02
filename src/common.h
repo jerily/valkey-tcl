@@ -18,7 +18,11 @@
 #include <stdlib.h>
 #include <valkey/valkey.h>
 #ifdef ENABLE_SSL
+#ifdef LIBVALKEY_TLS
+#include <valkey/tls.h>
+#else
 #include <valkey/valkey_ssl.h>
+#endif
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 #endif /* ENABLE_SSL */
