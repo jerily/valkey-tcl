@@ -22,7 +22,7 @@ jobs:
 
       - name: Setup Environment (compiler=${{ matrix.compiler }})
         run: |
-          sudo apt-get install tcl8.6-dev libssl-dev cmake
+          sudo apt-get install tcl8.6-dev libssl-dev cmake redis-server python3
           mkdir "$HOME/install dir"
           echo "CFGOPT_COMMON=--with-tcl=/usr/lib/tcl8.6" >> $GITHUB_ENV
           echo "CC=$COMPILER" >> $GITHUB_ENV
@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: valkey-io/libvalkey
-          ref: main
+          ref: 1ce574c28ecf137329a410381ce03c453616a9f9
           path: libvalkey
       - name: Configure libvalkey
         working-directory: libvalkey
@@ -83,3 +83,8 @@ jobs:
             echo "::error::Failure during Install"
             exit 1
           }
+      - name: TLS integration
+        env:
+          TCLLIBPATH: ${{ github.workspace }}/build
+          VALKEY_SERVER: redis-server
+        run: python3 tests/tls-integration.py

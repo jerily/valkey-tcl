@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
-project(valkey-tcl VERSION 1.0.0 LANGUAGES C)
+project(valkey-tcl VERSION 1.0.1 LANGUAGES C)
 
 set(TARGET tclvalkey)
 set(CMAKE_C_STANDARD   11)
@@ -19,6 +19,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 message(STATUS "ENABLE_SSL: ${ENABLE_SSL}")
 IF(ENABLE_SSL)
+    find_package(OpenSSL 1.1.1 REQUIRED)
     find_package(valkey_ssl REQUIRED)
     message(STATUS "valkey_ssl_LIBRARIES: ${valkey_ssl_LIBRARIES}")
     message(STATUS "valkey_ssl_INCLUDE_DIRS: ${valkey_ssl_INCLUDEDIR}")
@@ -83,6 +84,7 @@ add_library(tclvalkey SHARED
     src/tclvalkeyCtx.h
     src/tclvalkeyReply.c
     src/tclvalkeyReply.h
+    src/tclvalkeyTls.c
 )
 
 # Ensure the RPATH is used when installing
@@ -99,7 +101,7 @@ set_target_properties(tclvalkey PROPERTIES POSITION_INDEPENDENT_CODE ON INSTALL_
 include_directories(${TCL_INCLUDE_PATH} ${valkey_INCLUDE_DIRS})
 target_link_libraries(tclvalkey PRIVATE ${TCL_LIBRARY} ${valkey_LIBRARIES})
 IF(ENABLE_SSL)
-    target_link_libraries(tclvalkey PRIVATE ${valkey_ssl_LIBRARIES})
+    target_link_libraries(tclvalkey PRIVATE ${valkey_ssl_LIBRARIES} OpenSSL::SSL OpenSSL::Crypto)
     include_directories(${TCL_INCLUDE_PATH} ${valkey_ssl_INCLUDE_DIRS})
     add_compile_definitions(ENABLE_SSL)
 endif()

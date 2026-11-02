@@ -19,6 +19,8 @@
 #include <valkey/valkey.h>
 #ifdef ENABLE_SSL
 #include <valkey/valkey_ssl.h>
+#include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 #endif /* ENABLE_SSL */
 
 #ifndef TCL_SIZE_MAX

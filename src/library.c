@@ -297,6 +297,51 @@ ok:
 
 }
 
+static int vktcl_Authenticate(Tcl_Interp *interp, valkeyContext *vk_ctx,
+    const char *username, Tcl_Obj *password)
+{
+    valkeyReply *reply;
+    Tcl_Size passwordLen;
+    const char *passwordStr = Tcl_GetStringFromObj(password, &passwordLen);
+
+    if (username == NULL) {
+        DBG2(printf("send auth command..."));
+        reply = valkeyCommand(vk_ctx, "AUTH %b", passwordStr, (size_t)passwordLen);
+    } else {
+        DBG2(printf("send auth command (user: %s) ...", username));
+        reply = valkeyCommand(vk_ctx, "AUTH %s %b", username, passwordStr, (size_t)passwordLen);
+    }
+
+    if (reply == NULL) {
+        SetResult("error when authenticating on the valkey server: null reply");
+        DBG2(printf("return: ERROR (NULL reply)"));
+        return TCL_ERROR;
+    }
+
+    if (reply->type != VALKEY_REPLY_STATUS || strcmp(reply->str, "OK") != 0) {
+
+        Tcl_Obj *replyObj = NULL;
+        vktcl_ReplyToTclObject(reply, &replyObj, 0);
+
+        if (replyObj == NULL) {
+            replyObj = Tcl_NewStringObj("unknown reply", -1);
+        }
+
+        Tcl_SetObjResult(interp, Tcl_ObjPrintf("error when authenticating on"
+            " the valkey server: %s (user: %s)", Tcl_GetString(replyObj),
+            (username == NULL ? "default" : username)));
+        DBG2(printf("return: ERROR (%s)", Tcl_GetString(replyObj)));
+        Tcl_BounceRefCount(replyObj);
+        freeReplyObject(reply);
+        return TCL_ERROR;
+
+    }
+
+    DBG2(printf("authorization was successful"));
+    freeReplyObject(reply);
+    return TCL_OK;
+}
+
 static int vktcl_CtxHandleCmd(ClientData clientData, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
 
     int rc = TCL_OK;
@@ -383,6 +428,19 @@ retryConnect:
             retry_delay = (retry_delay + 1) * 2;
 
             if (valkeyReconnect(ctx->vk_ctx) == VALKEY_OK) {
+#ifdef ENABLE_SSL
+                if (ctx->ssl != NULL &&
+                    vktcl_StartTLS(interp, ctx->vk_ctx, ctx->ssl) != TCL_OK) {
+                    ctx->vk_ctx->err = VALKEY_ERR_OTHER;
+                    goto error;
+                }
+#endif
+                if (ctx->password != NULL && vktcl_Authenticate(interp, ctx->vk_ctx,
+                    ctx->username != NULL ? Tcl_GetString(ctx->username) : NULL,
+                    ctx->password) != TCL_OK) {
+                    ctx->vk_ctx->err = VALKEY_ERR_OTHER;
+                    goto error;
+                }
                 DBG2(printf("reconnection was successful"));
                 goto retryCommand;
             } else {
@@ -660,12 +718,21 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
     }
 
 #ifndef ENABLE_SSL
-    if (opt_ssl || opt_ssl_ca_file != NULL) {
+    if (opt_ssl || opt_ssl_ca_file != NULL || opt_ssl_cert_file != NULL || opt_ssl_key_file != NULL) {
         SetResult("this package was built without SSL support");
         DBG2(printf("return: ERROR (no ssl support)"));
         return TCL_ERROR;
     }
 #endif /* ENABLE_SSL */
+
+    if (!opt_ssl && (opt_ssl_ca_file != NULL || opt_ssl_cert_file != NULL || opt_ssl_key_file != NULL)) {
+        SetResult("TLS certificate options require -ssl");
+        return TCL_ERROR;
+    }
+    if ((opt_ssl_cert_file == NULL) != (opt_ssl_key_file == NULL)) {
+        SetResult("-ssl_cert_file and -ssl_key_file must be specified together");
+        return TCL_ERROR;
+    }
 
     if (opt_ssl && opt_host == NULL) {
         SetResult("-ssl can be only used when -host is specified");
@@ -712,7 +779,7 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
     DBG2(printf("create valkey context"));
 
 #ifdef ENABLE_SSL
-    valkeySSLContext *ssl = NULL;
+    SSL_CTX *ssl = NULL;
 #endif /* ENABLE_SSL */
 
     valkeyContext *vk_ctx = valkeyConnectWithOptions(&options);
@@ -732,26 +799,9 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
 #ifdef ENABLE_SSL
     if (opt_ssl) {
 
-        DBG2(printf("initialize SSL context"));
-
-        valkeySSLContextError ssl_error = VALKEY_SSL_CTX_NONE;
-        ssl = valkeyCreateSSLContext(opt_ssl_ca_file, NULL, opt_ssl_cert_file,
-            opt_ssl_key_file, NULL, &ssl_error);
-
-        if(ssl == NULL || ssl_error != VALKEY_SSL_CTX_NONE) {
-            Tcl_SetObjResult(interp, Tcl_ObjPrintf("failed to initialize SSL: %s",
-                (ssl_error != VALKEY_SSL_CTX_NONE ? valkeySSLContextGetError(ssl_error) : "Unknown error")));
-            DBG2(printf("return: ERROR (ssl ctx failed: %s)",
-                (ssl_error != VALKEY_SSL_CTX_NONE ? valkeySSLContextGetError(ssl_error) : "Unknown error")));
-            goto error;
-        }
-
-        DBG2(printf("initialize valkey SSL context"));
-
-        if (valkeyInitiateSSLWithContext(vk_ctx, ssl) != VALKEY_OK) {
-            Tcl_SetObjResult(interp, Tcl_ObjPrintf("failed to create SSL channel: %s",
-                vk_ctx->errstr));
-            DBG2(printf("return: ERROR (ssl channel failed: %s)", vk_ctx->errstr));
+        ssl = vktcl_CreateTLSContext(interp, opt_ssl_ca_file, opt_ssl_cert_file,
+            opt_ssl_key_file);
+        if (ssl == NULL || vktcl_StartTLS(interp, vk_ctx, ssl) != TCL_OK) {
             goto error;
         }
 
@@ -776,45 +826,9 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
 
     } else {
 
-        valkeyReply *reply;
-        Tcl_Size passwordLen;
-        const char *passwordStr = Tcl_GetStringFromObj(opt_password, &passwordLen);
-
-        if (opt_username == NULL) {
-            DBG2(printf("send auth command..."));
-            reply = valkeyCommand(vk_ctx, "AUTH %b", passwordStr, (size_t)passwordLen);
-        } else {
-            DBG2(printf("send auth command (user: %s) ...", opt_username));
-            reply = valkeyCommand(vk_ctx, "AUTH %s %b", opt_username, passwordStr, (size_t)passwordLen);
-        }
-
-        if (reply == NULL) {
-            SetResult("error when authenticating on the valkey server: null reply");
-            DBG2(printf("return: ERROR (NULL reply)"));
+        if (vktcl_Authenticate(interp, vk_ctx, opt_username, opt_password) != TCL_OK) {
             goto error;
         }
-
-        if (reply->type != VALKEY_REPLY_STATUS || strcmp(reply->str, "OK") != 0) {
-
-            Tcl_Obj *replyObj = NULL;
-            vktcl_ReplyToTclObject(reply, &replyObj, 0);
-
-            if (replyObj == NULL) {
-                replyObj = Tcl_NewStringObj("unknown reply", -1);
-            }
-
-            Tcl_SetObjResult(interp, Tcl_ObjPrintf("error when authenticating on"
-                " the valkey server: %s (user: %s)", Tcl_GetString(replyObj),
-                (opt_username == NULL ? "default" : opt_username)));
-            DBG2(printf("return: ERROR (%s)", Tcl_GetString(replyObj)));
-            Tcl_BounceRefCount(replyObj);
-            freeReplyObject(reply);
-            goto error;
-
-        }
-
-        DBG2(printf("authorization was successful"));
-        freeReplyObject(reply);
 
     }
 
@@ -825,6 +839,14 @@ static int vktcl_CtxNewCmd(ClientData clientData, Tcl_Interp *interp, int objc, 
         goto error;
     }
 
+    if (opt_password != NULL) {
+        ctx->password = opt_password;
+        Tcl_IncrRefCount(ctx->password);
+    }
+    if (opt_username != NULL) {
+        ctx->username = Tcl_NewStringObj(opt_username, -1);
+        Tcl_IncrRefCount(ctx->username);
+    }
     ctx->retryCount = opt_retry_count;
     ctx->isReplyTyped = opt_reply_typed;
 #ifdef ENABLE_SSL
@@ -859,7 +881,7 @@ error:
     valkeyFree(vk_ctx);
 #ifdef ENABLE_SSL
     if (ssl != NULL) {
-        valkeyFreeSSLContext(ssl);
+        SSL_CTX_free(ssl);
     }
 #endif /* ENABLE_SSL */
     return TCL_ERROR;

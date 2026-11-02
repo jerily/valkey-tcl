@@ -34,6 +34,8 @@ vktcl_CtxType *vktcl_CtxNew(Tcl_Interp *interp, valkeyContext *vk_ctx) {
     rc->isBlocking = 1;
 
     rc->retryCount = 5;
+    rc->username = NULL;
+    rc->password = NULL;
 
     Tcl_MutexLock(&vktcl_ctx2internal_mx);
 
@@ -81,10 +83,18 @@ void vktcl_CtxClose(vktcl_CtxType *ctx) {
 #ifdef ENABLE_SSL
     if (ctx->ssl != NULL) {
         DBG2(printf("free ssl ctx"));
-        valkeyFreeSSLContext(ctx->ssl);
+        SSL_CTX_free(ctx->ssl);
         ctx->ssl = NULL;
     }
 #endif /* ENABLE_SSL */
+    if (ctx->username != NULL) {
+        Tcl_DecrRefCount(ctx->username);
+        ctx->username = NULL;
+    }
+    if (ctx->password != NULL) {
+        Tcl_DecrRefCount(ctx->password);
+        ctx->password = NULL;
+    }
     vktcl_CtxUnlock(ctx);
     return;
 }

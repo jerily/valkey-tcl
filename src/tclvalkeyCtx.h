@@ -17,13 +17,15 @@ typedef struct {
     Tcl_Mutex mx;
 
 #ifdef ENABLE_SSL
-    valkeySSLContext *ssl;
+    SSL_CTX *ssl;
 #endif /* ENABLE_SSL */
 
     /* options */
     int isReplyTyped;
     int isBlocking;
     int retryCount;
+    Tcl_Obj *username;
+    Tcl_Obj *password;
 
 } vktcl_CtxType;
 
@@ -36,6 +38,12 @@ extern "C" {
 #endif
 
 void vktcl_CtxPackageInitialize(void);
+
+#ifdef ENABLE_SSL
+SSL_CTX *vktcl_CreateTLSContext(Tcl_Interp *interp, const char *ca_file,
+    const char *cert_file, const char *key_file);
+int vktcl_StartTLS(Tcl_Interp *interp, valkeyContext *vk_ctx, SSL_CTX *ssl_ctx);
+#endif
 
 vktcl_CtxType *vktcl_CtxNew(Tcl_Interp *interp, valkeyContext *vk_ctx);
 
