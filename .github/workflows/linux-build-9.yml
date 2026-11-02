@@ -44,14 +44,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: valkey-io/libvalkey
-          ref: 1ce574c28ecf137329a410381ce03c453616a9f9
+          ref: main
           path: libvalkey
       - name: Configure libvalkey
         working-directory: libvalkey
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/libvalkey -DCMAKE_PREFIX_PATH=$HOME/libvalkey -DENABLE_SSL=OFF
+          cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/libvalkey -DCMAKE_PREFIX_PATH=$HOME/libvalkey -DENABLE_TLS=OFF
       - name: Build libvalkey
         working-directory: libvalkey/build
         run: |
