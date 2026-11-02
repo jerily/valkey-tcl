@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22.1)
-project(valkey-tcl VERSION 1.0.2 LANGUAGES C)
+project(valkey-tcl VERSION 1.0.3 LANGUAGES C)
 
 set(TARGET tclvalkey)
 set(CMAKE_C_STANDARD   11)
@@ -38,6 +38,7 @@ message(STATUS "valkey_INCLUDE_DIRS: ${valkey_INCLUDEDIR}")
 find_package(TCL 8.6.13 REQUIRED)  # TCL_INCLUDE_PATH TCL_LIBRARY
 find_program(TCL_TCLSH
   NAMES
+      tclsh91 tclsh9.1
       tclsh86 tclsh8.6
       tclsh90 tclsh9.0
       tclsh
