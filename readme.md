@@ -2,6 +2,10 @@
 
 TCL/C extension that provides an interface to the Valkey key-value store.
 
+## Principles
+
+TLS connections verify the server identity and never retry over plaintext.
+
 ## Requirements
 
 - [libvalkey](https://github.com/valkey-io/libvalkey)
@@ -86,6 +90,11 @@ The `-host` (and possibly `-port`) or `-path` parameter must be specified to suc
 
 Parameters `-ssl`, `-ssl_ca_file`, `-ssl_cert_file` and `-ssl_key_file` will work only if the package is built with SSL connection support (by default it is disabled). For detailed information, please see this section - [Note about SSL support](#note-about-ssl-support).
 
+`-ssl` requires TLS 1.2 or newer and verifies the certificate and `-host`
+(hostname or IP). It uses OpenSSL's default CA paths unless `-ssl_ca_file` is
+specified. Certificate options require `-ssl`; client certificates require both
+certificate and key. Reconnects restore TLS and authentication before retrying.
+
 If the `-var` parameter is specified, then the command name is also assigned to a variable. If this variable is deleted, the connection will be destroyed. This is useful when using a connection inside a procedure and specifying the name of a local variable. Then, when exiting the procedure, the local variable will be deleted, releasing the connection.
 
 If the `-var` parameter is not used, then the connection must be destroyed using the `destroy` subcommand when it is needed.
@@ -100,6 +109,21 @@ set vkc [valkey -host "localhost" -port 7000]
 # destroy the connection
 $vkc destroy
 ```
+
+## Security
+
+### Surface
+
+Network connections, credentials and server replies.
+
+### Protections
+
+With `-ssl`, certificates and server identity are verified on every connection.
+Credentials are sent after the TLS handshake, including reconnects.
+
+### Pending
+
+Applications must enable `-ssl` and supply trusted CA certificates.
 
 ### Available subcommands
 
